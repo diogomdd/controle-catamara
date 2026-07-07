@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="manifest" href="manifest.json">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#2563eb">
     <title>Controle Catamarã</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2563eb">
     
     <style>
         body { font-family: sans-serif; padding-bottom: 90px; background-color: #f3f4f6; }
@@ -28,12 +29,19 @@
         }
         .sync-online { background-color: #10b981; color: white; }
         .sync-offline { background-color: #ef4444; color: white; }
-        .date-selector { 
-            background: #dbeafe; 
-            padding: 8px; 
+        .filter-btn { 
+            padding: 8px 16px; 
             border-radius: 8px; 
-            margin-bottom: 12px;
-            border: 2px solid #3b82f6;
+            font-size: 12px; 
+            font-weight: bold;
+            border: 2px solid #e5e7eb;
+            background: white;
+            color: #374151;
+        }
+        .filter-btn.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
         }
     </style>
 </head>
@@ -46,7 +54,7 @@
         <p class="text-center text-sm opacity-80" id="dataHoje"></p>
     </header>
 
-    <!-- SELETOR GLOBAL DE DATA (visível em todas as abas) -->
+    <!-- SELETOR GLOBAL DE DATA -->
     <div class="bg-white p-3 shadow-sm sticky top-[88px] z-5">
         <div class="flex items-center gap-2">
             <span class="text-sm font-bold text-blue-700">📅 Data:</span>
@@ -60,7 +68,7 @@
         <!-- ABA 1: GUIAS -->
         <div id="tab-guias" class="tab-content">
             <div class="card p-4 mb-4">
-                <h2 class="font-bold text-lg mb-3 text-blue-700">📋 Registrar Guia</h2>
+                <h2 class="font-bold text-lg mb-3 text-blue-700"> Registrar Guia</h2>
                 
                 <label class="block text-sm font-semibold mb-1">Nome do Guia</label>
                 <input type="text" id="nomeGuia" list="guias-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Wesley">
@@ -156,7 +164,7 @@
                 </div>
 
                 <button onclick="salvarBarco()" class="w-full btn-boat font-bold py-3 rounded-lg shadow-md text-lg">
-                    🚤 Adicionar Embarcação
+                     Adicionar Embarcação
                 </button>
             </div>
 
@@ -175,7 +183,7 @@
             </div>
         </div>
 
-        <!-- ABA 3: CONTAS (AGORA COM PERÍODO) -->
+        <!-- ABA 3: CONTAS -->
         <div id="tab-contas" class="tab-content hidden">
             <h2 class="font-bold text-lg mb-3 text-blue-700">📊 Prestação de Contas</h2>
             
@@ -192,7 +200,7 @@
                         <input type="date" id="dataFim" class="w-full border-2 border-blue-500 rounded p-2">
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 mb-3">
                     <button onclick="aplicarPeriodo()" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-lg shadow text-sm">
                         🔍 Gerar Relatório
                     </button>
@@ -203,15 +211,31 @@
                         Mês
                     </button>
                 </div>
+
+                <!-- FILTRO DE TIPO DE RELATÓRIO -->
+                <h4 class="font-bold text-sm text-gray-700 mb-2">📋 Tipo de Relatório:</h4>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="setFiltroTipo('ambos')" id="filtro-ambos" class="filter-btn active flex-1">
+                        📊 Ambos
+                    </button>
+                    <button onclick="setFiltroTipo('embarque')" id="filtro-embarque" class="filter-btn flex-1">
+                        🚤 Só Embarque
+                    </button>
+                    <button onclick="setFiltroTipo('comissao')" id="filtro-comissao" class="filter-btn flex-1">
+                        🍽️ Só Comissão
+                    </button>
+                </div>
             </div>
 
-            <div class="card p-4 mb-4">
-                <h3 class="font-bold text-green-700 mb-2">💰 Repasse aos Donos</h3>
+            <!-- SEÇÃO EMBARQUE -->
+            <div id="secao-embarque" class="card p-4 mb-4">
+                <h3 class="font-bold text-green-700 mb-2">💰 Repasse aos Donos (Embarque)</h3>
                 <div id="rel-catamaras"></div>
             </div>
 
-            <div class="card p-4 mb-4">
-                <h3 class="font-bold text-purple-700 mb-2">📋 Comissão por Agência</h3>
+            <!-- SEÇÃO COMISSÃO -->
+            <div id="secao-comissao" class="card p-4 mb-4">
+                <h3 class="font-bold text-purple-700 mb-2">📋 Comissão por Agência (Almoço)</h3>
                 <p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por pessoa que almoçou)</p>
                 <div id="rel-agencias"></div>
             </div>
@@ -285,10 +309,10 @@
             <span class="text-2xl">📋</span> Guias
         </button>
         <button onclick="abrirTab('barcos')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-barcos">
-            <span class="text-2xl">🚤</span> Barcos
+            <span class="text-2xl"></span> Barcos
         </button>
         <button onclick="abrirTab('contas')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-contas">
-            <span class="text-2xl">📊</span> Contas
+            <span class="text-2xl"></span> Contas
         </button>
         <button onclick="abrirTab('config')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-config">
             <span class="text-2xl">⚙️</span> Config
@@ -312,9 +336,8 @@
         let registrosGuias = [];
         let registrosEmbarcacoes = [];
         let config = { adulto: 60, crianca: 35, comissao: 5 };
-
-        // DATA GLOBAL - sincronizada entre todas as abas
         let dataGlobal = dataLocalHoje();
+        let filtroTipoRelatorio = 'ambos'; // 'ambos', 'embarque', 'comissao'
 
         // FUNÇÕES AUXILIARES
         function dataLocalHoje() {
@@ -349,6 +372,16 @@
             return `"${str}"`;
         }
 
+        // ORDENAR POR DATA E HORA (do mais antigo para o mais recente)
+        function ordenarPorDataHora(array) {
+            return array.sort((a, b) => {
+                if (a.data === b.data) {
+                    return (a.hora || '').localeCompare(b.hora || '');
+                }
+                return a.data.localeCompare(b.data);
+            });
+        }
+
         function atualizarIndicadorSync(online) {
             const indicator = document.getElementById('syncIndicator');
             if (online) {
@@ -360,7 +393,6 @@
             }
         }
 
-        // ATUALIZAR DATA GLOBAL (sincroniza todas as abas)
         function atualizarDataGlobal(novaData) {
             dataGlobal = novaData;
             document.getElementById('dataGlobal').value = novaData;
@@ -371,7 +403,6 @@
             atualizarDataGlobal(dataLocalHoje());
         }
 
-        // PERÍODO PARA RELATÓRIOS
         function aplicarPeriodo() {
             atualizarTela();
         }
@@ -391,6 +422,32 @@
             const dia = String(primeiroDia.getDate()).padStart(2, '0');
             document.getElementById('dataInicio').value = `${ano}-${mes}-${dia}`;
             document.getElementById('dataFim').value = dataLocalHoje();
+            atualizarTela();
+        }
+
+        // FILTRO DE TIPO DE RELATÓRIO
+        function setFiltroTipo(tipo) {
+            filtroTipoRelatorio = tipo;
+            
+            // Atualizar botões visuais
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`filtro-${tipo}`).classList.add('active');
+            
+            // Mostrar/esconder seções
+            const secaoEmbarque = document.getElementById('secao-embarque');
+            const secaoComissao = document.getElementById('secao-comissao');
+            
+            if (tipo === 'ambos') {
+                secaoEmbarque.style.display = 'block';
+                secaoComissao.style.display = 'block';
+            } else if (tipo === 'embarque') {
+                secaoEmbarque.style.display = 'block';
+                secaoComissao.style.display = 'none';
+            } else if (tipo === 'comissao') {
+                secaoEmbarque.style.display = 'none';
+                secaoComissao.style.display = 'block';
+            }
+            
             atualizarTela();
         }
 
@@ -415,7 +472,6 @@
                 document.getElementById(id).addEventListener('input', atualizarTotaisForm);
             });
 
-            // Listener do seletor global de data
             document.getElementById('dataGlobal').addEventListener('change', (e) => {
                 atualizarDataGlobal(e.target.value);
             });
@@ -480,7 +536,7 @@
         }
 
         function salvarGuia() {
-            const data = dataGlobal; // Usa a data global
+            const data = dataGlobal;
             const guia = document.getElementById('nomeGuia').value.trim();
             const agencia = document.getElementById('agenciaGuia').value.trim();
             const ad = obterNumero('adultosGuia');
@@ -521,7 +577,7 @@
         }
 
         function salvarBarco() {
-            const data = dataGlobal; // Usa a data global
+            const data = dataGlobal;
             const barco = document.getElementById('nomeBarco').value.trim();
             const ad = obterNumero('adultosBarco');
             const cr = obterNumero('criancasBarco');
@@ -568,15 +624,23 @@
         }
 
         function atualizarTela() {
-            // Listas usam a data global
-            const guiadosFiltrados = registrosGuias.filter(e => e.data === dataGlobal);
-            const barcosFiltrados = registrosEmbarcacoes.filter(e => e.data === dataGlobal);
+            // Listas usam a data global (ordenadas)
+            const guiadosFiltrados = ordenarPorDataHora(
+                registrosGuias.filter(e => e.data === dataGlobal)
+            );
+            const barcosFiltrados = ordenarPorDataHora(
+                registrosEmbarcacoes.filter(e => e.data === dataGlobal)
+            );
 
-            // Contas usam o período
+            // Contas usam o período (ordenadas)
             const dataInicio = document.getElementById('dataInicio').value || dataLocalHoje();
             const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
-            const contasGuias = registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim);
-            const contasBarcos = registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim);
+            const contasGuias = ordenarPorDataHora(
+                registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim)
+            );
+            const contasBarcos = ordenarPorDataHora(
+                registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim)
+            );
 
             // Lista Guias
             const listaGuias = document.getElementById('lista-guias');
@@ -586,7 +650,7 @@
             if (guiadosFiltrados.length === 0) {
                 listaGuias.innerHTML = '<p class="text-gray-500 text-center text-sm">Nenhum guia registrado nesta data.</p>';
             } else {
-                guiadosFiltrados.slice().reverse().forEach(e => {
+                guiadosFiltrados.forEach(e => {
                     totPaxGuias += e.totalPax;
                     totValorGuias += e.faturamento;
                     totAlmocoGuias += (e.almocaram || 0);
@@ -596,7 +660,7 @@
                         <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-green-500">
                             <div class="flex justify-between font-bold">
                                 <span>${escaparHTML(e.guia)}</span>
-                                <span class="text-gray-500 text-xs">${e.hora}</span>
+                                <span class="text-gray-500 text-xs">${e.data} ${e.hora}</span>
                             </div>
                             <div class="text-xs text-gray-600 mb-1">${escaparHTML(e.agencia)}</div>
                             <div class="flex justify-between text-xs mb-1">
@@ -604,7 +668,7 @@
                                 <span class="font-bold text-green-600">${formatarMoeda(e.faturamento)}</span>
                             </div>
                             <div class="flex justify-between text-xs mb-2">
-                                <span>🍽️ ${e.almocaram || 0}</span>
+                                <span>️ ${e.almocaram || 0}</span>
                                 <span class="font-bold text-orange-600">${formatarMoeda(e.comissao)}</span>
                             </div>
                             <button onclick="excluirGuia('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
@@ -624,17 +688,17 @@
             if (barcosFiltrados.length === 0) {
                 listaBarcos.innerHTML = '<p class="text-gray-500 text-center text-sm">Nenhuma embarcação registrada nesta data.</p>';
             } else {
-                barcosFiltrados.slice().reverse().forEach(e => {
+                barcosFiltrados.forEach(e => {
                     totPaxBarcos += e.totalPax;
                     totValorBarcos += e.valorRepasse;
                     listaBarcos.innerHTML += `
                         <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-blue-500">
                             <div class="flex justify-between font-bold">
                                 <span>${escaparHTML(e.catamaran)}</span>
-                                <span class="text-gray-500 text-xs">${e.hora}</span>
+                                <span class="text-gray-500 text-xs">${e.data} ${e.hora}</span>
                             </div>
                             <div class="flex justify-between text-xs mb-2">
-                                <span>👨${e.adultos} 🧒${e.criancas} 👶${e.bebes} 🎁${e.cortesia} = ${e.totalPax}</span>
+                                <span>👨${e.adultos} 🧒${e.criancas} 👶${e.bebes} ${e.cortesia} = ${e.totalPax}</span>
                                 <span class="font-bold text-green-600">${formatarMoeda(e.valorRepasse)}</span>
                             </div>
                             <button onclick="excluirBarco('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
@@ -644,31 +708,41 @@
             document.getElementById('total-barcos-pax').innerText = totPaxBarcos;
             document.getElementById('total-barcos-valor').innerText = formatarMoeda(totValorBarcos);
 
-            // Relatórios Catamarãs (PERÍODO)
+            // Relatórios Catamarãs (PERÍODO + FILTRO)
             const relCat = {};
-            contasBarcos.forEach(e => {
-                if (!relCat[e.catamaran]) relCat[e.catamaran] = 0;
-                relCat[e.catamaran] += e.valorRepasse;
-            });
+            if (filtroTipoRelatorio !== 'comissao') {
+                contasBarcos.forEach(e => {
+                    if (!relCat[e.catamaran]) relCat[e.catamaran] = 0;
+                    relCat[e.catamaran] += e.valorRepasse;
+                });
+            }
             const divCat = document.getElementById('rel-catamaras');
-            divCat.innerHTML = Object.keys(relCat).length === 0 
-                ? '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>'
-                : Object.entries(relCat).map(([cat, val]) => `
+            if (filtroTipoRelatorio === 'comissao') {
+                divCat.innerHTML = '<p class="text-gray-500 text-sm italic">Filtro ativo: Só Comissão</p>';
+            } else if (Object.keys(relCat).length === 0) {
+                divCat.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
+            } else {
+                divCat.innerHTML = Object.entries(relCat).map(([cat, val]) => `
                     <div class="flex justify-between border-b py-2">
                         <span>${escaparHTML(cat)}</span>
                         <span class="font-bold text-green-700">${formatarMoeda(val)}</span>
                     </div>`).join('');
+            }
 
-            // Relatórios Agências (PERÍODO)
+            // Relatórios Agências (PERÍODO + FILTRO)
             const relAge = {};
-            contasGuias.forEach(e => {
-                if (!relAge[e.agencia]) relAge[e.agencia] = { pax: 0, comissao: 0, almocaram: 0 };
-                relAge[e.agencia].pax += e.totalPax;
-                relAge[e.agencia].comissao += e.comissao;
-                relAge[e.agencia].almocaram += (e.almocaram || 0);
-            });
+            if (filtroTipoRelatorio !== 'embarque') {
+                contasGuias.forEach(e => {
+                    if (!relAge[e.agencia]) relAge[e.agencia] = { pax: 0, comissao: 0, almocaram: 0 };
+                    relAge[e.agencia].pax += e.totalPax;
+                    relAge[e.agencia].comissao += e.comissao;
+                    relAge[e.agencia].almocaram += (e.almocaram || 0);
+                });
+            }
             const divAge = document.getElementById('rel-agencias');
-            if (Object.keys(relAge).length === 0) {
+            if (filtroTipoRelatorio === 'embarque') {
+                divAge.innerHTML = '<p class="text-gray-500 text-sm italic">Filtro ativo: Só Embarque</p>';
+            } else if (Object.keys(relAge).length === 0) {
                 divAge.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
             } else {
                 divAge.innerHTML = Object.entries(relAge).map(([age, d]) => {
@@ -742,7 +816,7 @@
 
         // CSV COMPATÍVEL COM EXCEL BR
         function exportarGuias() {
-            const dados = registrosGuias.filter(e => e.data === dataGlobal);
+            const dados = ordenarPorDataHora(registrosGuias.filter(e => e.data === dataGlobal));
             if (dados.length === 0) return alert('Nenhum registro.');
             
             let csv = 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total Embarque;Almoço;Faturamento;Comissão\n';
@@ -759,7 +833,7 @@
         }
 
         function exportarBarcos() {
-            const dados = registrosEmbarcacoes.filter(e => e.data === dataGlobal);
+            const dados = ordenarPorDataHora(registrosEmbarcacoes.filter(e => e.data === dataGlobal));
             if (dados.length === 0) return alert('Nenhum registro.');
             
             let csv = 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
@@ -775,34 +849,43 @@
             link.click();
         }
 
-        // NOVO: Exportar relatório completo do período
+        // Exportar relatório do período (respeita o filtro de tipo)
         function exportarRelatorioPeriodo() {
             const dataInicio = document.getElementById('dataInicio').value || dataLocalHoje();
             const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
-            const dadosGuias = registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim);
-            const dadosBarcos = registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim);
+            const dadosGuias = ordenarPorDataHora(
+                registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim)
+            );
+            const dadosBarcos = ordenarPorDataHora(
+                registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim)
+            );
 
             if (dadosGuias.length === 0 && dadosBarcos.length === 0) return alert('Nenhum registro no período.');
             
-            let csv = `RELATÓRIO DO PERÍODO: ${dataInicio} a ${dataFim}\n\n`;
+            let csv = `RELATÓRIO DO PERÍODO: ${dataInicio} a ${dataFim}\n`;
+            csv += `Tipo: ${filtroTipoRelatorio === 'ambos' ? 'Completo' : filtroTipoRelatorio === 'embarque' ? 'Só Embarque' : 'Só Comissão'}\n\n`;
             
-            csv += '=== EMBARQUES (POR GUIA) ===\n';
-            csv += 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total;Almoço;Faturamento;Comissão\n';
-            dadosGuias.forEach(e => {
-                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${e.comissao}\n`;
-            });
+            if (filtroTipoRelatorio !== 'comissao') {
+                csv += '=== EMBARQUES (POR GUIA) ===\n';
+                csv += 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total;Almoço;Faturamento;Comissão\n';
+                dadosGuias.forEach(e => {
+                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${e.comissao}\n`;
+                });
+            }
             
-            csv += '\n=== EMBARCAÇÕES ===\n';
-            csv += 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
-            dadosBarcos.forEach(e => {
-                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.catamaran)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
-            });
+            if (filtroTipoRelatorio !== 'embarque') {
+                csv += '\n=== EMBARCAÇÕES ===\n';
+                csv += 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
+                dadosBarcos.forEach(e => {
+                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.catamaran)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
+                });
+            }
             
             const BOM = '\uFEFF';
             const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = `relatorio_${dataInicio}_a_${dataFim}.csv`;
+            link.download = `relatorio_${dataInicio}_a_${dataFim}_${filtroTipoRelatorio}.csv`;
             link.click();
         }
 
@@ -932,10 +1015,5 @@
 
         carregarDados();
     </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
-  </script>
 </body>
 </html>
