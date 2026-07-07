@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#2563eb">
+    <title>Controle Catamarã</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <style>
+        body { font-family: sans-serif; padding-bottom: 90px; background-color: #f3f4f6; }
+        .tab-active { background-color: #2563eb; color: white; }
+        .btn-add { background-color: #10b981; color: white; }
+        .btn-boat { background-color: #3b82f6; color: white; }
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .btn-delete { background-color: #ef4444; color: white; }
+        .sync-indicator { 
+            position: fixed; top: 70px; right: 10px; 
+            padding: 5px 10px; border-radius: 20px; 
+            font-size: 10px; z-index: 100;
+        }
+        .sync-online { background-color: #10b981; color: white; }
+        .sync-offline { background-color: #ef4444; color: white; }
+        .date-selector { 
+            background: #dbeafe; 
+            padding: 8px; 
+            border-radius: 8px; 
+            margin-bottom: 12px;
+            border: 2px solid #3b82f6;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="syncIndicator" class="sync-indicator sync-offline">⏳ Conectando...</div>
+
+    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10">
+        <h1 class="text-xl font-bold text-center">⛵ Controle de Embarques</h1>
+        <p class="text-center text-sm opacity-80" id="dataHoje"></p>
+    </header>
+
+    <!-- SELETOR GLOBAL DE DATA (visível em todas as abas) -->
+    <div class="bg-white p-3 shadow-sm sticky top-[88px] z-5">
+        <div class="flex items-center gap-2">
+            <span class="text-sm font-bold text-blue-700">📅 Data:</span>
+            <input type="date" id="dataGlobal" class="flex-1 border-2 border-blue-500 rounded p-2 font-bold">
+            <button onclick="irParaHoje()" class="bg-blue-500 text-white px-3 py-2 rounded text-xs font-bold">Hoje</button>
+        </div>
+    </div>
+
+    <main class="p-4">
+        
+        <!-- ABA 1: GUIAS -->
+        <div id="tab-guias" class="tab-content">
+            <div class="card p-4 mb-4">
+                <h2 class="font-bold text-lg mb-3 text-blue-700">📋 Registrar Guia</h2>
+                
+                <label class="block text-sm font-semibold mb-1">Nome do Guia</label>
+                <input type="text" id="nomeGuia" list="guias-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Wesley">
+                <datalist id="guias-list"></datalist>
+
+                <label class="block text-sm font-semibold mb-1">Agência</label>
+                <input type="text" id="agenciaGuia" list="agencias-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Agência X">
+                <datalist id="agencias-list"></datalist>
+
+                <div class="bg-blue-50 p-3 rounded-lg mb-3">
+                    <h3 class="font-bold text-sm text-blue-700 mb-2">🚤 EMBARQUE</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold">Adultos (<span id="lbl-adulto">R$60</span>)</label>
+                            <input type="number" id="adultosGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold">Crianças (<span id="lbl-crianca">R$35</span>)</label>
+                            <input type="number" id="criancasGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold">Bebês (Grátis)</label>
+                            <input type="number" id="bebesGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold">Cortesia (Grátis)</label>
+                            <input type="number" id="cortesiaGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+                        </div>
+                    </div>
+                    <div class="mt-2 text-xs text-blue-700">
+                        Total: <span id="totalEmbarque" class="font-bold">0</span> | 
+                        Faturamento: <span id="faturamentoEmbarque" class="font-bold">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <div class="bg-orange-50 p-3 rounded-lg mb-3">
+                    <h3 class="font-bold text-sm text-orange-700 mb-2">🍽️ ALMOÇO (independente)</h3>
+                    <label class="block text-xs font-semibold mb-1">Quantos almoçaram?</label>
+                    <input type="number" id="almocaramGuia" value="0" min="0" class="w-full border rounded p-2 text-center font-bold text-lg">
+                    <p class="text-xs text-orange-700 mt-1">
+                        💰 Comissão: <span id="comissaoAlmoco" class="font-bold">R$ 0,00</span>
+                    </p>
+                </div>
+
+                <button onclick="salvarGuia()" class="w-full btn-add font-bold py-3 rounded-lg shadow-md text-lg">
+                    ✅ Adicionar Guia
+                </button>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="font-bold text-blue-700 mb-2">Guias Registrados</h3>
+                <div id="lista-guias" class="space-y-2">
+                    <p class="text-gray-500 text-center text-sm">Nenhum guia registrado.</p>
+                </div>
+                <div class="mt-3 pt-3 border-t">
+                    <div class="flex justify-between text-sm"><span>Total Embarque:</span> <span id="total-guias-pax" class="font-bold">0</span></div>
+                    <div class="flex justify-between text-sm"><span>Faturamento:</span> <span id="total-guias-valor" class="font-bold text-green-600">R$ 0,00</span></div>
+                    <div class="flex justify-between text-sm"><span>Total Almoço:</span> <span id="total-guias-almoco" class="font-bold text-orange-600">0</span></div>
+                    <div class="flex justify-between text-sm"><span>Total Comissão:</span> <span id="total-guias-comissao" class="font-bold text-red-600">R$ 0,00</span></div>
+                </div>
+                <button onclick="exportarGuias()" class="w-full mt-3 bg-gray-600 text-white font-bold py-2 rounded-lg shadow text-sm">
+                    📥 Exportar CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- ABA 2: EMBARCAÇÕES -->
+        <div id="tab-barcos" class="tab-content hidden">
+            <div class="card p-4 mb-4">
+                <h2 class="font-bold text-lg mb-3 text-blue-700">🚤 Registrar Embarcação</h2>
+                
+                <label class="block text-sm font-semibold mb-1">Catamarã / Dono</label>
+                <input type="text" id="nomeBarco" list="barcos-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Sanderson">
+                <datalist id="barcos-list"></datalist>
+
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                        <label class="block text-xs font-semibold">Adultos</label>
+                        <input type="number" id="adultosBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold">Crianças</label>
+                        <input type="number" id="criancasBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold">Bebês</label>
+                        <input type="number" id="bebesBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold">Cortesia</label>
+                        <input type="number" id="cortesiaBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+                    </div>
+                </div>
+
+                <button onclick="salvarBarco()" class="w-full btn-boat font-bold py-3 rounded-lg shadow-md text-lg">
+                    🚤 Adicionar Embarcação
+                </button>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="font-bold text-blue-700 mb-2">Embarcações Registradas</h3>
+                <div id="lista-barcos" class="space-y-2">
+                    <p class="text-gray-500 text-center text-sm">Nenhuma embarcação registrada.</p>
+                </div>
+                <div class="mt-3 pt-3 border-t">
+                    <div class="flex justify-between text-sm"><span>Total Pessoas:</span> <span id="total-barcos-pax" class="font-bold">0</span></div>
+                    <div class="flex justify-between text-sm"><span>Total Repasse:</span> <span id="total-barcos-valor" class="font-bold text-green-600">R$ 0,00</span></div>
+                </div>
+                <button onclick="exportarBarcos()" class="w-full mt-3 bg-gray-600 text-white font-bold py-2 rounded-lg shadow text-sm">
+                    📥 Exportar CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- ABA 3: CONTAS (AGORA COM PERÍODO) -->
+        <div id="tab-contas" class="tab-content hidden">
+            <h2 class="font-bold text-lg mb-3 text-blue-700">📊 Prestação de Contas</h2>
+            
+            <!-- FILTRO DE PERÍODO -->
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-blue-700 mb-2">📅 Período do Relatório</h3>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">De:</label>
+                        <input type="date" id="dataInicio" class="w-full border-2 border-blue-500 rounded p-2">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Até:</label>
+                        <input type="date" id="dataFim" class="w-full border-2 border-blue-500 rounded p-2">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="aplicarPeriodo()" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-lg shadow text-sm">
+                        🔍 Gerar Relatório
+                    </button>
+                    <button onclick="periodoHoje()" class="bg-gray-500 text-white font-bold py-2 px-3 rounded-lg shadow text-xs">
+                        Hoje
+                    </button>
+                    <button onclick="periodoMes()" class="bg-gray-500 text-white font-bold py-2 px-3 rounded-lg shadow text-xs">
+                        Mês
+                    </button>
+                </div>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-green-700 mb-2">💰 Repasse aos Donos</h3>
+                <div id="rel-catamaras"></div>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-purple-700 mb-2">📋 Comissão por Agência</h3>
+                <p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por pessoa que almoçou)</p>
+                <div id="rel-agencias"></div>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-orange-700 mb-2">🔍 Conferência</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span>Total embarcado (guias):</span> <span id="conf-guias" class="font-bold">0</span></div>
+                    <div class="flex justify-between"><span>Total nos barcos:</span> <span id="conf-barcos" class="font-bold">0</span></div>
+                    <div class="flex justify-between pt-2 border-t"><span class="font-bold">Diferença:</span> <span id="conf-dif" class="font-bold text-red-600">0</span></div>
+                    <div class="flex justify-between text-orange-600"><span>Total almoçantes:</span> <span id="conf-almoco" class="font-bold">0</span></div>
+                </div>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-blue-700 mb-2">📈 Resumo Financeiro</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span>Faturamento:</span> <span id="res-bruto" class="font-bold text-green-600">R$ 0,00</span></div>
+                    <div class="flex justify-between"><span>Comissão:</span> <span id="res-comissao" class="font-bold text-red-500">R$ 0,00</span></div>
+                    <div class="flex justify-between"><span>Repasse:</span> <span id="res-repasse" class="font-bold text-blue-600">R$ 0,00</span></div>
+                    <div class="flex justify-between pt-2 border-t"><span class="font-bold">Seu Lucro:</span> <span id="res-lucro" class="font-bold text-purple-600">R$ 0,00</span></div>
+                </div>
+            </div>
+
+            <button onclick="exportarRelatorioPeriodo()" class="w-full bg-gray-700 text-white font-bold py-3 rounded-lg shadow">
+                📥 Exportar Relatório Completo (CSV)
+            </button>
+        </div>
+
+        <!-- ABA 4: CONFIG -->
+        <div id="tab-config" class="tab-content hidden">
+            <h2 class="font-bold text-lg mb-3 text-blue-700">⚙️ Configurações</h2>
+            
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold mb-3">💵 Valores</h3>
+                <p class="text-xs text-gray-500 mb-3">⚠️ Alterar afeta só novos lançamentos.</p>
+                
+                <label class="block text-sm font-semibold mb-1">Adulto (R$)</label>
+                <input type="number" id="cfg-adulto" step="0.01" class="w-full border rounded p-2 mb-3">
+
+                <label class="block text-sm font-semibold mb-1">Criança (R$)</label>
+                <input type="number" id="cfg-crianca" step="0.01" class="w-full border rounded p-2 mb-3">
+
+                <label class="block text-sm font-semibold mb-1">Comissão almoço (R$)</label>
+                <input type="number" id="cfg-comissao" step="0.01" class="w-full border rounded p-2 mb-3">
+
+                <button onclick="salvarConfig()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow">
+                    💾 Salvar Configurações
+                </button>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="font-bold mb-3 text-red-600">⚠️ Backup e Restauração</h3>
+                <button onclick="backupDados()" class="w-full bg-green-600 text-white font-bold py-2 rounded-lg shadow mb-2">
+                    💾 Baixar Backup (JSON)
+                </button>
+                <button onclick="document.getElementById('inputRestore').click()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow mb-2">
+                    📂 Restaurar Backup
+                </button>
+                <input type="file" id="inputRestore" accept=".json" class="hidden" onchange="restaurarBackup(event)">
+                <p class="text-xs text-gray-500 mb-3">Use para recuperar seus dados em outro celular ou após limpar cache.</p>
+                <button onclick="limparTudo()" class="w-full bg-red-500 text-white font-bold py-2 rounded-lg shadow">
+                    🗑️ Apagar Todos os Dados
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <nav class="fixed bottom-0 w-full bg-white border-t flex justify-around py-2 shadow-lg">
+        <button onclick="abrirTab('guias')" class="tab-btn flex flex-col items-center text-xs p-2 tab-active" id="btn-guias">
+            <span class="text-2xl">📋</span> Guias
+        </button>
+        <button onclick="abrirTab('barcos')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-barcos">
+            <span class="text-2xl">🚤</span> Barcos
+        </button>
+        <button onclick="abrirTab('contas')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-contas">
+            <span class="text-2xl">📊</span> Contas
+        </button>
+        <button onclick="abrirTab('config')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-config">
+            <span class="text-2xl">⚙️</span> Config
+        </button>
+    </nav>
+
+    <script>
+        // FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYkQ99hLH31ojXtTt_O6-TRhTh8nyL3CQ",
+            authDomain: "controle-catamara.firebaseapp.com",
+            projectId: "controle-catamara",
+            storageBucket: "controle-catamara.firebasestorage.app",
+            messagingSenderId: "746243406797",
+            appId: "1:746243406797:web:ed8841177fdf8f9fcbe284"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let registrosGuias = [];
+        let registrosEmbarcacoes = [];
+        let config = { adulto: 60, crianca: 35, comissao: 5 };
+
+        // DATA GLOBAL - sincronizada entre todas as abas
+        let dataGlobal = dataLocalHoje();
+
+        // FUNÇÕES AUXILIARES
+        function dataLocalHoje() {
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            return `${ano}-${mes}-${dia}`;
+        }
+
+        function obterNumero(id) {
+            const valor = parseInt(document.getElementById(id).value, 10);
+            if (isNaN(valor) || valor < 0) return 0;
+            return valor;
+        }
+
+        function escaparHTML(texto) {
+            return String(texto)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function formatarMoeda(valor) {
+            return `R$ ${valor.toFixed(2).replace('.', ',')}`;
+        }
+
+        function escapeCSV(valor) {
+            const str = String(valor || '').replace(/"/g, '""');
+            return `"${str}"`;
+        }
+
+        function atualizarIndicadorSync(online) {
+            const indicator = document.getElementById('syncIndicator');
+            if (online) {
+                indicator.className = 'sync-indicator sync-online';
+                indicator.innerText = '✅ Online';
+            } else {
+                indicator.className = 'sync-indicator sync-offline';
+                indicator.innerText = '⏳ Sincronizando...';
+            }
+        }
+
+        // ATUALIZAR DATA GLOBAL (sincroniza todas as abas)
+        function atualizarDataGlobal(novaData) {
+            dataGlobal = novaData;
+            document.getElementById('dataGlobal').value = novaData;
+            atualizarTela();
+        }
+
+        function irParaHoje() {
+            atualizarDataGlobal(dataLocalHoje());
+        }
+
+        // PERÍODO PARA RELATÓRIOS
+        function aplicarPeriodo() {
+            atualizarTela();
+        }
+
+        function periodoHoje() {
+            const hoje = dataLocalHoje();
+            document.getElementById('dataInicio').value = hoje;
+            document.getElementById('dataFim').value = hoje;
+            atualizarTela();
+        }
+
+        function periodoMes() {
+            const hoje = new Date();
+            const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            const ano = primeiroDia.getFullYear();
+            const mes = String(primeiroDia.getMonth() + 1).padStart(2, '0');
+            const dia = String(primeiroDia.getDate()).padStart(2, '0');
+            document.getElementById('dataInicio').value = `${ano}-${mes}-${dia}`;
+            document.getElementById('dataFim').value = dataLocalHoje();
+            atualizarTela();
+        }
+
+        function atualizarTotaisForm() {
+            const ad = obterNumero('adultosGuia');
+            const cr = obterNumero('criancasGuia');
+            const bb = obterNumero('bebesGuia');
+            const cort = obterNumero('cortesiaGuia');
+            const alm = obterNumero('almocaramGuia');
+
+            const totalEmb = ad + cr + bb + cort;
+            const faturamento = (ad * config.adulto) + (cr * config.crianca);
+            const comissao = alm * config.comissao;
+
+            document.getElementById('totalEmbarque').innerText = totalEmb;
+            document.getElementById('faturamentoEmbarque').innerText = formatarMoeda(faturamento);
+            document.getElementById('comissaoAlmoco').innerText = formatarMoeda(comissao);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            ['adultosGuia', 'criancasGuia', 'bebesGuia', 'cortesiaGuia', 'almocaramGuia'].forEach(id => {
+                document.getElementById(id).addEventListener('input', atualizarTotaisForm);
+            });
+
+            // Listener do seletor global de data
+            document.getElementById('dataGlobal').addEventListener('change', (e) => {
+                atualizarDataGlobal(e.target.value);
+            });
+        });
+
+        // Inicialização
+        document.getElementById('dataHoje').innerText = new Date().toLocaleDateString('pt-BR', {weekday: 'long', day: '2-digit', month: 'long'});
+        document.getElementById('dataGlobal').value = dataLocalHoje();
+        document.getElementById('dataInicio').value = dataLocalHoje();
+        document.getElementById('dataFim').value = dataLocalHoje();
+
+        // CARREGAR DADOS DO FIREBASE
+        function carregarDados() {
+            try {
+                db.collection('registrosGuias').onSnapshot((snapshot) => {
+                    try {
+                        registrosGuias = [];
+                        snapshot.forEach((doc) => {
+                            registrosGuias.push({ id: doc.id, ...doc.data() });
+                        });
+                        atualizarTela();
+                        atualizarIndicadorSync(true);
+                    } catch (err) {
+                        console.error('Erro ao processar guias:', err);
+                    }
+                }, (error) => {
+                    console.error('Erro ao carregar guias:', error);
+                    atualizarIndicadorSync(false);
+                });
+
+                db.collection('registrosEmbarcacoes').onSnapshot((snapshot) => {
+                    try {
+                        registrosEmbarcacoes = [];
+                        snapshot.forEach((doc) => {
+                            registrosEmbarcacoes.push({ id: doc.id, ...doc.data() });
+                        });
+                        atualizarTela();
+                        atualizarIndicadorSync(true);
+                    } catch (err) {
+                        console.error('Erro ao processar embarcações:', err);
+                    }
+                }, (error) => {
+                    console.error('Erro ao carregar embarcações:', error);
+                    atualizarIndicadorSync(false);
+                });
+
+                db.collection('config').doc('principal').onSnapshot((doc) => {
+                    try {
+                        if (doc.exists) {
+                            config = doc.data();
+                            carregarConfig();
+                        }
+                    } catch (err) {
+                        console.error('Erro ao carregar config:', err);
+                    }
+                }, (error) => {
+                    console.error('Erro ao carregar config:', error);
+                });
+            } catch (err) {
+                console.error('Erro geral ao carregar:', err);
+            }
+        }
+
+        function salvarGuia() {
+            const data = dataGlobal; // Usa a data global
+            const guia = document.getElementById('nomeGuia').value.trim();
+            const agencia = document.getElementById('agenciaGuia').value.trim();
+            const ad = obterNumero('adultosGuia');
+            const cr = obterNumero('criancasGuia');
+            const bb = obterNumero('bebesGuia');
+            const cort = obterNumero('cortesiaGuia');
+            const alm = obterNumero('almocaramGuia');
+
+            if (!guia || !agencia) return alert('Preencha Guia e Agência!');
+
+            const totalEmbarque = ad + cr + bb + cort;
+            const faturamento = (ad * config.adulto) + (cr * config.crianca);
+            const comissao = alm * config.comissao;
+
+            const novoRegistro = {
+                data, hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                guia, agencia,
+                adultos: ad, criancas: cr, bebes: bb, cortesia: cort,
+                almocaram: alm,
+                faturamento, comissao,
+                totalPax: totalEmbarque,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection('registrosGuias').add(novoRegistro)
+                .then(() => {
+                    document.getElementById('nomeGuia').value = '';
+                    document.getElementById('agenciaGuia').value = '';
+                    document.getElementById('adultosGuia').value = 0;
+                    document.getElementById('criancasGuia').value = 0;
+                    document.getElementById('bebesGuia').value = 0;
+                    document.getElementById('cortesiaGuia').value = 0;
+                    document.getElementById('almocaramGuia').value = 0;
+                    atualizarTotaisForm();
+                    alert('Guia adicionado!');
+                })
+                .catch((error) => alert('Erro: ' + error.message));
+        }
+
+        function salvarBarco() {
+            const data = dataGlobal; // Usa a data global
+            const barco = document.getElementById('nomeBarco').value.trim();
+            const ad = obterNumero('adultosBarco');
+            const cr = obterNumero('criancasBarco');
+            const bb = obterNumero('bebesBarco');
+            const cort = obterNumero('cortesiaBarco');
+
+            if (!barco) return alert('Preencha o Catamarã!');
+
+            const totalPax = ad + cr + bb + cort;
+            if (totalPax <= 0) return alert('Informe pelo menos uma pessoa.');
+
+            const faturamento = (ad * config.adulto) + (cr * config.crianca);
+
+            const novoRegistro = {
+                data, hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                catamaran: barco,
+                adultos: ad, criancas: cr, bebes: bb, cortesia: cort,
+                totalPax, valorRepasse: faturamento,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection('registrosEmbarcacoes').add(novoRegistro)
+                .then(() => {
+                    document.getElementById('nomeBarco').value = '';
+                    document.getElementById('adultosBarco').value = 0;
+                    document.getElementById('criancasBarco').value = 0;
+                    document.getElementById('bebesBarco').value = 0;
+                    document.getElementById('cortesiaBarco').value = 0;
+                    alert('Embarcação registrada!');
+                })
+                .catch((error) => alert('Erro: ' + error.message));
+        }
+
+        function excluirGuia(id) {
+            if (!confirm('Excluir este guia?')) return;
+            db.collection('registrosGuias').doc(id).delete()
+                .catch((error) => alert('Erro: ' + error.message));
+        }
+
+        function excluirBarco(id) {
+            if (!confirm('Excluir esta embarcação?')) return;
+            db.collection('registrosEmbarcacoes').doc(id).delete()
+                .catch((error) => alert('Erro: ' + error.message));
+        }
+
+        function atualizarTela() {
+            // Listas usam a data global
+            const guiadosFiltrados = registrosGuias.filter(e => e.data === dataGlobal);
+            const barcosFiltrados = registrosEmbarcacoes.filter(e => e.data === dataGlobal);
+
+            // Contas usam o período
+            const dataInicio = document.getElementById('dataInicio').value || dataLocalHoje();
+            const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
+            const contasGuias = registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim);
+            const contasBarcos = registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim);
+
+            // Lista Guias
+            const listaGuias = document.getElementById('lista-guias');
+            listaGuias.innerHTML = '';
+            let totPaxGuias = 0, totValorGuias = 0, totAlmocoGuias = 0, totComissaoGuias = 0;
+            
+            if (guiadosFiltrados.length === 0) {
+                listaGuias.innerHTML = '<p class="text-gray-500 text-center text-sm">Nenhum guia registrado nesta data.</p>';
+            } else {
+                guiadosFiltrados.slice().reverse().forEach(e => {
+                    totPaxGuias += e.totalPax;
+                    totValorGuias += e.faturamento;
+                    totAlmocoGuias += (e.almocaram || 0);
+                    totComissaoGuias += (e.comissao || 0);
+                    
+                    listaGuias.innerHTML += `
+                        <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-green-500">
+                            <div class="flex justify-between font-bold">
+                                <span>${escaparHTML(e.guia)}</span>
+                                <span class="text-gray-500 text-xs">${e.hora}</span>
+                            </div>
+                            <div class="text-xs text-gray-600 mb-1">${escaparHTML(e.agencia)}</div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span>🚤 ${e.adultos}+${e.criancas}+${e.bebes}+${e.cortesia} = ${e.totalPax}</span>
+                                <span class="font-bold text-green-600">${formatarMoeda(e.faturamento)}</span>
+                            </div>
+                            <div class="flex justify-between text-xs mb-2">
+                                <span>🍽️ ${e.almocaram || 0}</span>
+                                <span class="font-bold text-orange-600">${formatarMoeda(e.comissao)}</span>
+                            </div>
+                            <button onclick="excluirGuia('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
+                        </div>`;
+                });
+            }
+            document.getElementById('total-guias-pax').innerText = totPaxGuias;
+            document.getElementById('total-guias-valor').innerText = formatarMoeda(totValorGuias);
+            document.getElementById('total-guias-almoco').innerText = totAlmocoGuias;
+            document.getElementById('total-guias-comissao').innerText = formatarMoeda(totComissaoGuias);
+
+            // Lista Barcos
+            const listaBarcos = document.getElementById('lista-barcos');
+            listaBarcos.innerHTML = '';
+            let totPaxBarcos = 0, totValorBarcos = 0;
+            
+            if (barcosFiltrados.length === 0) {
+                listaBarcos.innerHTML = '<p class="text-gray-500 text-center text-sm">Nenhuma embarcação registrada nesta data.</p>';
+            } else {
+                barcosFiltrados.slice().reverse().forEach(e => {
+                    totPaxBarcos += e.totalPax;
+                    totValorBarcos += e.valorRepasse;
+                    listaBarcos.innerHTML += `
+                        <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-blue-500">
+                            <div class="flex justify-between font-bold">
+                                <span>${escaparHTML(e.catamaran)}</span>
+                                <span class="text-gray-500 text-xs">${e.hora}</span>
+                            </div>
+                            <div class="flex justify-between text-xs mb-2">
+                                <span>👨${e.adultos} 🧒${e.criancas} 👶${e.bebes} 🎁${e.cortesia} = ${e.totalPax}</span>
+                                <span class="font-bold text-green-600">${formatarMoeda(e.valorRepasse)}</span>
+                            </div>
+                            <button onclick="excluirBarco('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
+                        </div>`;
+                });
+            }
+            document.getElementById('total-barcos-pax').innerText = totPaxBarcos;
+            document.getElementById('total-barcos-valor').innerText = formatarMoeda(totValorBarcos);
+
+            // Relatórios Catamarãs (PERÍODO)
+            const relCat = {};
+            contasBarcos.forEach(e => {
+                if (!relCat[e.catamaran]) relCat[e.catamaran] = 0;
+                relCat[e.catamaran] += e.valorRepasse;
+            });
+            const divCat = document.getElementById('rel-catamaras');
+            divCat.innerHTML = Object.keys(relCat).length === 0 
+                ? '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>'
+                : Object.entries(relCat).map(([cat, val]) => `
+                    <div class="flex justify-between border-b py-2">
+                        <span>${escaparHTML(cat)}</span>
+                        <span class="font-bold text-green-700">${formatarMoeda(val)}</span>
+                    </div>`).join('');
+
+            // Relatórios Agências (PERÍODO)
+            const relAge = {};
+            contasGuias.forEach(e => {
+                if (!relAge[e.agencia]) relAge[e.agencia] = { pax: 0, comissao: 0, almocaram: 0 };
+                relAge[e.agencia].pax += e.totalPax;
+                relAge[e.agencia].comissao += e.comissao;
+                relAge[e.agencia].almocaram += (e.almocaram || 0);
+            });
+            const divAge = document.getElementById('rel-agencias');
+            if (Object.keys(relAge).length === 0) {
+                divAge.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
+            } else {
+                divAge.innerHTML = Object.entries(relAge).map(([age, d]) => {
+                    const textoWhats = `*Relatório ${age}*\nPeríodo: ${dataInicio} a ${dataFim}\nEmbarque: ${d.pax}\nAlmoço: ${d.almocaram}\nComissão: ${formatarMoeda(d.comissao)}`;
+                    return `
+                        <div class="border-b py-2">
+                            <div class="flex justify-between font-bold">
+                                <span>${escaparHTML(age)}</span>
+                                <span class="text-red-600">${formatarMoeda(d.comissao)}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mb-1">🚤 ${d.pax} | 🍽️ ${d.almocaram}</div>
+                            <a href="https://wa.me/?text=${encodeURIComponent(textoWhats)}" target="_blank" class="block w-full mt-1 bg-green-500 text-white text-xs py-1 rounded text-center">
+                                📲 WhatsApp
+                            </a>
+                        </div>`;
+                }).join('');
+            }
+
+            // Conferência (PERÍODO)
+            let totalGuiasPax = 0, totalBarcosPax = 0, totalAlmoco = 0;
+            contasGuias.forEach(e => {
+                totalGuiasPax += e.totalPax;
+                totalAlmoco += (e.almocaram || 0);
+            });
+            contasBarcos.forEach(e => totalBarcosPax += e.totalPax);
+            document.getElementById('conf-guias').innerText = totalGuiasPax;
+            document.getElementById('conf-barcos').innerText = totalBarcosPax;
+            document.getElementById('conf-dif').innerText = totalGuiasPax - totalBarcosPax;
+            document.getElementById('conf-almoco').innerText = totalAlmoco;
+
+            // Resumo Financeiro (PERÍODO)
+            let totBruto = 0, totComissao = 0, totRepasse = 0;
+            contasGuias.forEach(e => {
+                totBruto += e.faturamento;
+                totComissao += e.comissao;
+            });
+            contasBarcos.forEach(e => totRepasse += e.valorRepasse);
+            document.getElementById('res-bruto').innerText = formatarMoeda(totBruto);
+            document.getElementById('res-comissao').innerText = formatarMoeda(totComissao);
+            document.getElementById('res-repasse').innerText = formatarMoeda(totRepasse);
+            document.getElementById('res-lucro').innerText = formatarMoeda(totBruto - totComissao - totRepasse);
+
+            // Datalists
+            const guias = [...new Set(registrosGuias.map(e => e.guia))];
+            document.getElementById('guias-list').innerHTML = guias.map(g => `<option value="${escaparHTML(g)}">`).join('');
+            const agencias = [...new Set(registrosGuias.map(e => e.agencia))];
+            document.getElementById('agencias-list').innerHTML = agencias.map(a => `<option value="${escaparHTML(a)}">`).join('');
+            const barcos = [...new Set(registrosEmbarcacoes.map(e => e.catamaran))];
+            document.getElementById('barcos-list').innerHTML = barcos.map(b => `<option value="${escaparHTML(b)}">`).join('');
+        }
+
+        function carregarConfig() {
+            document.getElementById('cfg-adulto').value = config.adulto;
+            document.getElementById('cfg-crianca').value = config.crianca;
+            document.getElementById('cfg-comissao').value = config.comissao;
+            document.getElementById('lbl-adulto').innerText = `R$${config.adulto}`;
+            document.getElementById('lbl-crianca').innerText = `R$${config.crianca}`;
+            document.getElementById('lbl-comissao-rel').innerText = config.comissao;
+            atualizarTotaisForm();
+        }
+
+        function salvarConfig() {
+            config.adulto = parseFloat(document.getElementById('cfg-adulto').value) || 60;
+            config.crianca = parseFloat(document.getElementById('cfg-crianca').value) || 35;
+            config.comissao = parseFloat(document.getElementById('cfg-comissao').value) || 5;
+            
+            db.collection('config').doc('principal').set(config)
+                .then(() => alert('Configurações salvas!'))
+                .catch((error) => alert('Erro: ' + error.message));
+        }
+
+        // CSV COMPATÍVEL COM EXCEL BR
+        function exportarGuias() {
+            const dados = registrosGuias.filter(e => e.data === dataGlobal);
+            if (dados.length === 0) return alert('Nenhum registro.');
+            
+            let csv = 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total Embarque;Almoço;Faturamento;Comissão\n';
+            dados.forEach(e => {
+                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${e.comissao}\n`;
+            });
+            
+            const BOM = '\uFEFF';
+            const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `guias_${dataGlobal}.csv`;
+            link.click();
+        }
+
+        function exportarBarcos() {
+            const dados = registrosEmbarcacoes.filter(e => e.data === dataGlobal);
+            if (dados.length === 0) return alert('Nenhum registro.');
+            
+            let csv = 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
+            dados.forEach(e => {
+                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.catamaran)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
+            });
+            
+            const BOM = '\uFEFF';
+            const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `barcos_${dataGlobal}.csv`;
+            link.click();
+        }
+
+        // NOVO: Exportar relatório completo do período
+        function exportarRelatorioPeriodo() {
+            const dataInicio = document.getElementById('dataInicio').value || dataLocalHoje();
+            const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
+            const dadosGuias = registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim);
+            const dadosBarcos = registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim);
+
+            if (dadosGuias.length === 0 && dadosBarcos.length === 0) return alert('Nenhum registro no período.');
+            
+            let csv = `RELATÓRIO DO PERÍODO: ${dataInicio} a ${dataFim}\n\n`;
+            
+            csv += '=== EMBARQUES (POR GUIA) ===\n';
+            csv += 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total;Almoço;Faturamento;Comissão\n';
+            dadosGuias.forEach(e => {
+                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${e.comissao}\n`;
+            });
+            
+            csv += '\n=== EMBARCAÇÕES ===\n';
+            csv += 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
+            dadosBarcos.forEach(e => {
+                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.catamaran)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
+            });
+            
+            const BOM = '\uFEFF';
+            const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `relatorio_${dataInicio}_a_${dataFim}.csv`;
+            link.click();
+        }
+
+        function backupDados() {
+            const backup = {
+                versao: '2.0',
+                registrosGuias,
+                registrosEmbarcacoes,
+                config,
+                dataBackup: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `backup_catamara_${dataLocalHoje()}.json`;
+            link.click();
+        }
+
+        function restaurarBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    if (!data.registrosGuias || !data.registrosEmbarcacoes) {
+                        alert('Arquivo de backup inválido!');
+                        return;
+                    }
+
+                    if (!confirm(`Este backup contém:\n\n• ${data.registrosGuias.length} guias\n• ${data.registrosEmbarcacoes.length} embarcações\n• Data: ${new Date(data.dataBackup).toLocaleString('pt-BR')}\n\nEscolha o modo de restauração:\n\nOK = SUBSTITUIR todos os dados atuais\nCANCELAR = MESCLAR (adicionar aos dados atuais)`)) {
+                        mesclarBackup(data);
+                    } else {
+                        substituirBackup(data);
+                    }
+                } catch (err) {
+                    alert('Erro ao ler o arquivo: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function substituirBackup(data) {
+            if (!confirm('⚠️ ATENÇÃO: Todos os dados atuais serão APAGADOS e substituídos pelo backup. Continuar?')) return;
+
+            const batchDel1 = db.batch();
+            registrosGuias.forEach(doc => batchDel1.delete(db.collection('registrosGuias').doc(doc.id)));
+            const batchDel2 = db.batch();
+            registrosEmbarcacoes.forEach(doc => batchDel2.delete(db.collection('registrosEmbarcacoes').doc(doc.id)));
+
+            Promise.all([batchDel1.commit(), batchDel2.commit()]).then(() => {
+                const batchGuias = db.batch();
+                data.registrosGuias.forEach(g => {
+                    const { id, timestamp, ...resto } = g;
+                    batchGuias.set(db.collection('registrosGuias').doc(), {
+                        ...resto,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+
+                const batchBarcos = db.batch();
+                data.registrosEmbarcacoes.forEach(b => {
+                    const { id, timestamp, ...resto } = b;
+                    batchBarcos.set(db.collection('registrosEmbarcacoes').doc(), {
+                        ...resto,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+
+                if (data.config) {
+                    db.collection('config').doc('principal').set(data.config);
+                }
+
+                Promise.all([batchGuias.commit(), batchBarcos.commit()])
+                    .then(() => alert('✅ Backup restaurado!'))
+                    .catch(err => alert('Erro: ' + err.message));
+            });
+        }
+
+        function mesclarBackup(data) {
+            const batchGuias = db.batch();
+            data.registrosGuias.forEach(g => {
+                const { id, timestamp, ...resto } = g;
+                batchGuias.set(db.collection('registrosGuias').doc(), {
+                    ...resto,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
+            const batchBarcos = db.batch();
+            data.registrosEmbarcacoes.forEach(b => {
+                const { id, timestamp, ...resto } = b;
+                batchBarcos.set(db.collection('registrosEmbarcacoes').doc(), {
+                    ...resto,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
+            Promise.all([batchGuias.commit(), batchBarcos.commit()])
+                .then(() => alert('✅ Backup mesclado!'))
+                .catch(err => alert('Erro: ' + err.message));
+        }
+
+        function abrirTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+            document.getElementById('btn-' + tab).classList.add('tab-active');
+        }
+
+        function limparTudo() {
+            if (!confirm('⚠️ ATENÇÃO: Apagar TODOS os dados?')) return;
+            if (!confirm('⚠️ ÚLTIMA CHANCE: Realmente apagar tudo?')) return;
+
+            const batch1 = db.batch();
+            registrosGuias.forEach(doc => batch1.delete(db.collection('registrosGuias').doc(doc.id)));
+            const batch2 = db.batch();
+            registrosEmbarcacoes.forEach(doc => batch2.delete(db.collection('registrosEmbarcacoes').doc(doc.id)));
+
+            Promise.all([batch1.commit(), batch2.commit()])
+                .then(() => alert('Dados apagados.'))
+                .catch(err => alert('Erro: ' + err.message));
+        }
+
+        carregarDados();
+    </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+</body>
+</html>
