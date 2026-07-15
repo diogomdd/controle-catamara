@@ -22,6 +22,7 @@
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .btn-delete { background-color: #ef4444; color: white; }
+        .btn-mark { background-color: #8b5cf6; color: white; }
         .sync-indicator { 
             position: fixed; top: 70px; right: 10px; 
             padding: 5px 10px; border-radius: 20px; 
@@ -57,7 +58,7 @@
     <!-- SELETOR GLOBAL DE DATA -->
     <div class="bg-white p-3 shadow-sm sticky top-[88px] z-5">
         <div class="flex items-center gap-2">
-            <span class="text-sm font-bold text-blue-700">📅 Data:</span>
+            <span class="text-sm font-bold text-blue-700"> Data:</span>
             <input type="date" id="dataGlobal" class="flex-1 border-2 border-blue-500 rounded p-2 font-bold">
             <button onclick="irParaHoje()" class="bg-blue-500 text-white px-3 py-2 rounded text-xs font-bold">Hoje</button>
         </div>
@@ -68,7 +69,7 @@
         <!-- ABA 1: GUIAS -->
         <div id="tab-guias" class="tab-content">
             <div class="card p-4 mb-4">
-                <h2 class="font-bold text-lg mb-3 text-blue-700"> Registrar Guia</h2>
+                <h2 class="font-bold text-lg mb-3 text-blue-700">📋 Registrar Guia</h2>
                 
                 <label class="block text-sm font-semibold mb-1">Nome do Guia</label>
                 <input type="text" id="nomeGuia" list="guias-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Wesley">
@@ -130,7 +131,7 @@
                     <div class="flex justify-between text-sm"><span>Total Comissão:</span> <span id="total-guias-comissao" class="font-bold text-red-600">R$ 0,00</span></div>
                 </div>
                 <button onclick="exportarGuias()" class="w-full mt-3 bg-gray-600 text-white font-bold py-2 rounded-lg shadow text-sm">
-                    📥 Exportar CSV
+                     Exportar CSV
                 </button>
             </div>
         </div>
@@ -164,7 +165,7 @@
                 </div>
 
                 <button onclick="salvarBarco()" class="w-full btn-boat font-bold py-3 rounded-lg shadow-md text-lg">
-                     Adicionar Embarcação
+                    🚤 Adicionar Embarcação
                 </button>
             </div>
 
@@ -185,7 +186,7 @@
 
         <!-- ABA 3: CONTAS -->
         <div id="tab-contas" class="tab-content hidden">
-            <h2 class="font-bold text-lg mb-3 text-blue-700">📊 Prestação de Contas</h2>
+            <h2 class="font-bold text-lg mb-3 text-blue-700"> Prestação de Contas</h2>
             
             <!-- FILTRO DE PERÍODO -->
             <div class="card p-4 mb-4">
@@ -241,7 +242,7 @@
             </div>
 
             <div class="card p-4 mb-4">
-                <h3 class="font-bold text-orange-700 mb-2">🔍 Conferência</h3>
+                <h3 class="font-bold text-orange-700 mb-2"> Conferência</h3>
                 <div class="space-y-2 text-sm">
                     <div class="flex justify-between"><span>Total embarcado (guias):</span> <span id="conf-guias" class="font-bold">0</span></div>
                     <div class="flex justify-between"><span>Total nos barcos:</span> <span id="conf-barcos" class="font-bold">0</span></div>
@@ -265,13 +266,39 @@
             </button>
         </div>
 
-        <!-- ABA 4: CONFIG -->
+        <!-- ABA 4: HISTÓRICO DE PRESTAÇÕES -->
+        <div id="tab-historico" class="tab-content hidden">
+            <h2 class="font-bold text-lg mb-3 text-blue-700">📜 Histórico de Prestações</h2>
+            
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-green-700 mb-3">🚤 Última Prestação com Catamarãs</h3>
+                <div id="historico-catamaras" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>
+                </div>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-purple-700 mb-3"> Última Prestação com Agências</h3>
+                <div id="historico-agencias" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>
+                </div>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="font-bold text-blue-700 mb-3"> Todas as Prestações</h3>
+                <div id="lista-prestacoes" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 5: CONFIG -->
         <div id="tab-config" class="tab-content hidden">
             <h2 class="font-bold text-lg mb-3 text-blue-700">⚙️ Configurações</h2>
             
             <div class="card p-4 mb-4">
                 <h3 class="font-bold mb-3">💵 Valores</h3>
-                <p class="text-xs text-gray-500 mb-3">⚠️ Alterar afeta só novos lançamentos.</p>
+                <p class="text-xs text-gray-500 mb-3">️ Alterar afeta só novos lançamentos.</p>
                 
                 <label class="block text-sm font-semibold mb-1">Adulto (R$)</label>
                 <input type="number" id="cfg-adulto" step="0.01" class="w-full border rounded p-2 mb-3">
@@ -293,12 +320,12 @@
                     💾 Baixar Backup (JSON)
                 </button>
                 <button onclick="document.getElementById('inputRestore').click()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow mb-2">
-                    📂 Restaurar Backup
+                     Restaurar Backup
                 </button>
                 <input type="file" id="inputRestore" accept=".json" class="hidden" onchange="restaurarBackup(event)">
                 <p class="text-xs text-gray-500 mb-3">Use para recuperar seus dados em outro celular ou após limpar cache.</p>
                 <button onclick="limparTudo()" class="w-full bg-red-500 text-white font-bold py-2 rounded-lg shadow">
-                    🗑️ Apagar Todos os Dados
+                    ️ Apagar Todos os Dados
                 </button>
             </div>
         </div>
@@ -309,13 +336,16 @@
             <span class="text-2xl">📋</span> Guias
         </button>
         <button onclick="abrirTab('barcos')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-barcos">
-            <span class="text-2xl"></span> Barcos
+            <span class="text-2xl">🚤</span> Barcos
         </button>
         <button onclick="abrirTab('contas')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-contas">
-            <span class="text-2xl"></span> Contas
+            <span class="text-2xl">📊</span> Contas
+        </button>
+        <button onclick="abrirTab('historico')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-historico">
+            <span class="text-2xl">📜</span> Histórico
         </button>
         <button onclick="abrirTab('config')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-config">
-            <span class="text-2xl">⚙️</span> Config
+            <span class="text-2xl">️</span> Config
         </button>
     </nav>
 
@@ -335,9 +365,10 @@
 
         let registrosGuias = [];
         let registrosEmbarcacoes = [];
+        let prestacoes = [];
         let config = { adulto: 60, crianca: 35, comissao: 5 };
         let dataGlobal = dataLocalHoje();
-        let filtroTipoRelatorio = 'ambos'; // 'ambos', 'embarque', 'comissao'
+        let filtroTipoRelatorio = 'ambos';
 
         // FUNÇÕES AUXILIARES
         function dataLocalHoje() {
@@ -372,7 +403,6 @@
             return `"${str}"`;
         }
 
-        // ORDENAR POR DATA E HORA (do mais antigo para o mais recente)
         function ordenarPorDataHora(array) {
             return array.sort((a, b) => {
                 if (a.data === b.data) {
@@ -425,15 +455,11 @@
             atualizarTela();
         }
 
-        // FILTRO DE TIPO DE RELATÓRIO
         function setFiltroTipo(tipo) {
             filtroTipoRelatorio = tipo;
-            
-            // Atualizar botões visuais
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`filtro-${tipo}`).classList.add('active');
             
-            // Mostrar/esconder seções
             const secaoEmbarque = document.getElementById('secao-embarque');
             const secaoComissao = document.getElementById('secao-comissao');
             
@@ -516,6 +542,21 @@
                 }, (error) => {
                     console.error('Erro ao carregar embarcações:', error);
                     atualizarIndicadorSync(false);
+                });
+
+                // NOVO: Carregar Prestações
+                db.collection('prestacoes').onSnapshot((snapshot) => {
+                    try {
+                        prestacoes = [];
+                        snapshot.forEach((doc) => {
+                            prestacoes.push({ id: doc.id, ...doc.data() });
+                        });
+                        atualizarHistorico();
+                    } catch (err) {
+                        console.error('Erro ao processar prestações:', err);
+                    }
+                }, (error) => {
+                    console.error('Erro ao carregar prestações:', error);
                 });
 
                 db.collection('config').doc('principal').onSnapshot((doc) => {
@@ -611,6 +652,26 @@
                 .catch((error) => alert('Erro: ' + error.message));
         }
 
+        // NOVO: Marcar Prestação de Contas
+        function marcarPrestacao(tipo, nome, periodoInicio, periodoFim, valor) {
+            const prestacao = {
+                tipo, // 'catamara' ou 'agencia'
+                nome,
+                periodoInicio,
+                periodoFim,
+                valor,
+                dataPrestacao: dataLocalHoje(),
+                horaPrestacao: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection('prestacoes').add(prestacao)
+                .then(() => {
+                    alert(`✅ Prestação registrada!\n\n${nome}\nPeríodo: ${periodoInicio} a ${periodoFim}\nValor: ${formatarMoeda(valor)}\nData: ${prestacao.dataPrestacao} ${prestacao.horaPrestacao}`);
+                })
+                .catch((error) => alert('Erro: ' + error.message));
+        }
+
         function excluirGuia(id) {
             if (!confirm('Excluir este guia?')) return;
             db.collection('registrosGuias').doc(id).delete()
@@ -624,7 +685,6 @@
         }
 
         function atualizarTela() {
-            // Listas usam a data global (ordenadas)
             const guiadosFiltrados = ordenarPorDataHora(
                 registrosGuias.filter(e => e.data === dataGlobal)
             );
@@ -632,7 +692,6 @@
                 registrosEmbarcacoes.filter(e => e.data === dataGlobal)
             );
 
-            // Contas usam o período (ordenadas)
             const dataInicio = document.getElementById('dataInicio').value || dataLocalHoje();
             const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
             const contasGuias = ordenarPorDataHora(
@@ -668,7 +727,7 @@
                                 <span class="font-bold text-green-600">${formatarMoeda(e.faturamento)}</span>
                             </div>
                             <div class="flex justify-between text-xs mb-2">
-                                <span>️ ${e.almocaram || 0}</span>
+                                <span>🍽️ ${e.almocaram || 0}</span>
                                 <span class="font-bold text-orange-600">${formatarMoeda(e.comissao)}</span>
                             </div>
                             <button onclick="excluirGuia('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
@@ -698,7 +757,7 @@
                                 <span class="text-gray-500 text-xs">${e.data} ${e.hora}</span>
                             </div>
                             <div class="flex justify-between text-xs mb-2">
-                                <span>👨${e.adultos} 🧒${e.criancas} 👶${e.bebes} ${e.cortesia} = ${e.totalPax}</span>
+                                <span>👨${e.adultos} 🧒${e.criancas} 👶${e.bebes} 🎁${e.cortesia} = ${e.totalPax}</span>
                                 <span class="font-bold text-green-600">${formatarMoeda(e.valorRepasse)}</span>
                             </div>
                             <button onclick="excluirBarco('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
@@ -708,7 +767,7 @@
             document.getElementById('total-barcos-pax').innerText = totPaxBarcos;
             document.getElementById('total-barcos-valor').innerText = formatarMoeda(totValorBarcos);
 
-            // Relatórios Catamarãs (PERÍODO + FILTRO)
+            // Relatórios Catamarãs
             const relCat = {};
             if (filtroTipoRelatorio !== 'comissao') {
                 contasBarcos.forEach(e => {
@@ -722,14 +781,33 @@
             } else if (Object.keys(relCat).length === 0) {
                 divCat.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
             } else {
-                divCat.innerHTML = Object.entries(relCat).map(([cat, val]) => `
-                    <div class="flex justify-between border-b py-2">
-                        <span>${escaparHTML(cat)}</span>
-                        <span class="font-bold text-green-700">${formatarMoeda(val)}</span>
-                    </div>`).join('');
+                divCat.innerHTML = Object.entries(relCat).map(([cat, val]) => {
+                    // Encontrar última prestação deste catamarã
+                    const ultimaPrestacao = prestacoes
+                        .filter(p => p.tipo === 'catamara' && p.nome === cat)
+                        .sort((a, b) => b.dataPrestacao.localeCompare(a.dataPrestacao))[0];
+                    
+                    const infoPrestacao = ultimaPrestacao 
+                        ? `<div class="text-xs text-green-600 mt-1">✅ Última prestação: ${ultimaPrestacao.dataPrestacao} ${ultimaPrestacao.horaPrestacao}</div>`
+                        : '<div class="text-xs text-gray-400 mt-1">⚠️ Nunca prestado</div>';
+                    
+                    return `
+                        <div class="flex justify-between border-b py-2">
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <span>${escaparHTML(cat)}</span>
+                                    <span class="font-bold text-green-700">${formatarMoeda(val)}</span>
+                                </div>
+                                ${infoPrestacao}
+                                <button onclick="marcarPrestacao('catamara', '${escaparHTML(cat)}', '${dataInicio}', '${dataFim}', ${val})" class="w-full mt-2 btn-mark text-xs py-1 rounded">
+                                    ✅ Marcar como Prestado
+                                </button>
+                            </div>
+                        </div>`;
+                }).join('');
             }
 
-            // Relatórios Agências (PERÍODO + FILTRO)
+            // Relatórios Agências
             const relAge = {};
             if (filtroTipoRelatorio !== 'embarque') {
                 contasGuias.forEach(e => {
@@ -746,7 +824,16 @@
                 divAge.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
             } else {
                 divAge.innerHTML = Object.entries(relAge).map(([age, d]) => {
+                    const ultimaPrestacao = prestacoes
+                        .filter(p => p.tipo === 'agencia' && p.nome === age)
+                        .sort((a, b) => b.dataPrestacao.localeCompare(a.dataPrestacao))[0];
+                    
+                    const infoPrestacao = ultimaPrestacao 
+                        ? `<div class="text-xs text-green-600 mt-1">✅ Última prestação: ${ultimaPrestacao.dataPrestacao} ${ultimaPrestacao.horaPrestacao}</div>`
+                        : '<div class="text-xs text-gray-400 mt-1">⚠️ Nunca prestado</div>';
+                    
                     const textoWhats = `*Relatório ${age}*\nPeríodo: ${dataInicio} a ${dataFim}\nEmbarque: ${d.pax}\nAlmoço: ${d.almocaram}\nComissão: ${formatarMoeda(d.comissao)}`;
+                    
                     return `
                         <div class="border-b py-2">
                             <div class="flex justify-between font-bold">
@@ -754,14 +841,20 @@
                                 <span class="text-red-600">${formatarMoeda(d.comissao)}</span>
                             </div>
                             <div class="text-xs text-gray-500 mb-1">🚤 ${d.pax} | 🍽️ ${d.almocaram}</div>
-                            <a href="https://wa.me/?text=${encodeURIComponent(textoWhats)}" target="_blank" class="block w-full mt-1 bg-green-500 text-white text-xs py-1 rounded text-center">
-                                📲 WhatsApp
-                            </a>
+                            ${infoPrestacao}
+                            <div class="flex gap-2 mt-2">
+                                <a href="https://wa.me/?text=${encodeURIComponent(textoWhats)}" target="_blank" class="flex-1 bg-green-500 text-white text-xs py-1 rounded text-center">
+                                     WhatsApp
+                                </a>
+                                <button onclick="marcarPrestacao('agencia', '${escaparHTML(age)}', '${dataInicio}', '${dataFim}', ${d.comissao})" class="flex-1 btn-mark text-xs py-1 rounded">
+                                    ✅ Prestado
+                                </button>
+                            </div>
                         </div>`;
                 }).join('');
             }
 
-            // Conferência (PERÍODO)
+            // Conferência
             let totalGuiasPax = 0, totalBarcosPax = 0, totalAlmoco = 0;
             contasGuias.forEach(e => {
                 totalGuiasPax += e.totalPax;
@@ -773,7 +866,7 @@
             document.getElementById('conf-dif').innerText = totalGuiasPax - totalBarcosPax;
             document.getElementById('conf-almoco').innerText = totalAlmoco;
 
-            // Resumo Financeiro (PERÍODO)
+            // Resumo Financeiro
             let totBruto = 0, totComissao = 0, totRepasse = 0;
             contasGuias.forEach(e => {
                 totBruto += e.faturamento;
@@ -792,6 +885,84 @@
             document.getElementById('agencias-list').innerHTML = agencias.map(a => `<option value="${escaparHTML(a)}">`).join('');
             const barcos = [...new Set(registrosEmbarcacoes.map(e => e.catamaran))];
             document.getElementById('barcos-list').innerHTML = barcos.map(b => `<option value="${escaparHTML(b)}">`).join('');
+
+            // Atualizar histórico
+            atualizarHistorico();
+        }
+
+        // NOVO: Atualizar Histórico de Prestações
+        function atualizarHistorico() {
+            // Última prestação por catamarã
+            const ultimasCatamaras = {};
+            prestacoes.filter(p => p.tipo === 'catamara').forEach(p => {
+                if (!ultimasCatamaras[p.nome] || p.dataPrestacao > ultimasCatamaras[p.nome].dataPrestacao) {
+                    ultimasCatamaras[p.nome] = p;
+                }
+            });
+
+            const divCatamaras = document.getElementById('historico-catamaras');
+            if (Object.keys(ultimasCatamaras).length === 0) {
+                divCatamaras.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>';
+            } else {
+                divCatamaras.innerHTML = Object.entries(ultimasCatamaras).map(([nome, p]) => `
+                    <div class="bg-green-50 p-3 rounded border-l-4 border-green-500">
+                        <div class="flex justify-between font-bold">
+                            <span>${escaparHTML(nome)}</span>
+                            <span class="text-green-700">${formatarMoeda(p.valor)}</span>
+                        </div>
+                        <div class="text-xs text-gray-600">
+                             ${p.dataPrestacao} ${p.horaPrestacao} | Período: ${p.periodoInicio} a ${p.periodoFim}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Última prestação por agência
+            const ultimasAgencias = {};
+            prestacoes.filter(p => p.tipo === 'agencia').forEach(p => {
+                if (!ultimasAgencias[p.nome] || p.dataPrestacao > ultimasAgencias[p.nome].dataPrestacao) {
+                    ultimasAgencias[p.nome] = p;
+                }
+            });
+
+            const divAgencias = document.getElementById('historico-agencias');
+            if (Object.keys(ultimasAgencias).length === 0) {
+                divAgencias.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>';
+            } else {
+                divAgencias.innerHTML = Object.entries(ultimasAgencias).map(([nome, p]) => `
+                    <div class="bg-purple-50 p-3 rounded border-l-4 border-purple-500">
+                        <div class="flex justify-between font-bold">
+                            <span>${escaparHTML(nome)}</span>
+                            <span class="text-purple-700">${formatarMoeda(p.valor)}</span>
+                        </div>
+                        <div class="text-xs text-gray-600">
+                            📅 ${p.dataPrestacao} ${p.horaPrestacao} | Período: ${p.periodoInicio} a ${p.periodoFim}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Todas as prestações (ordenadas por data)
+            const todasPrestacoes = ordenarPorDataHora(prestacoes.map(p => ({...p, data: p.dataPrestacao, hora: p.horaPrestacao})));
+            const divTodas = document.getElementById('lista-prestacoes');
+            if (todasPrestacoes.length === 0) {
+                divTodas.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>';
+            } else {
+                divTodas.innerHTML = todasPrestacoes.slice().reverse().map(p => `
+                    <div class="bg-gray-50 p-3 rounded text-sm border-l-4 ${p.tipo === 'catamara' ? 'border-green-500' : 'border-purple-500'}">
+                        <div class="flex justify-between font-bold">
+                            <span>${p.tipo === 'catamara' ? '🚤' : ''} ${escaparHTML(p.nome)}</span>
+                            <span class="text-gray-500 text-xs">${p.dataPrestacao} ${p.horaPrestacao}</span>
+                        </div>
+                        <div class="text-xs text-gray-600 mb-1">
+                            Período: ${p.periodoInicio} a ${p.periodoFim}
+                        </div>
+                        <div class="text-xs font-bold ${p.tipo === 'catamara' ? 'text-green-700' : 'text-purple-700'}">
+                            ${formatarMoeda(p.valor)}
+                        </div>
+                    </div>
+                `).join('');
+            }
         }
 
         function carregarConfig() {
@@ -814,7 +985,6 @@
                 .catch((error) => alert('Erro: ' + error.message));
         }
 
-        // CSV COMPATÍVEL COM EXCEL BR
         function exportarGuias() {
             const dados = ordenarPorDataHora(registrosGuias.filter(e => e.data === dataGlobal));
             if (dados.length === 0) return alert('Nenhum registro.');
@@ -849,7 +1019,6 @@
             link.click();
         }
 
-        // Exportar relatório do período (respeita o filtro de tipo)
         function exportarRelatorioPeriodo() {
             const dataInicio = document.getElementById('dataInicio').value || dataLocalHoje();
             const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
@@ -894,6 +1063,7 @@
                 versao: '2.0',
                 registrosGuias,
                 registrosEmbarcacoes,
+                prestacoes,
                 config,
                 dataBackup: new Date().toISOString()
             };
@@ -918,7 +1088,7 @@
                         return;
                     }
 
-                    if (!confirm(`Este backup contém:\n\n• ${data.registrosGuias.length} guias\n• ${data.registrosEmbarcacoes.length} embarcações\n• Data: ${new Date(data.dataBackup).toLocaleString('pt-BR')}\n\nEscolha o modo de restauração:\n\nOK = SUBSTITUIR todos os dados atuais\nCANCELAR = MESCLAR (adicionar aos dados atuais)`)) {
+                    if (!confirm(`Este backup contém:\n\n• ${data.registrosGuias.length} guias\n• ${data.registrosEmbarcacoes.length} embarcações\n• ${(data.prestacoes || []).length} prestações\n• Data: ${new Date(data.dataBackup).toLocaleString('pt-BR')}\n\nEscolha o modo de restauração:\n\nOK = SUBSTITUIR todos os dados atuais\nCANCELAR = MESCLAR (adicionar aos dados atuais)`)) {
                         mesclarBackup(data);
                     } else {
                         substituirBackup(data);
@@ -938,8 +1108,10 @@
             registrosGuias.forEach(doc => batchDel1.delete(db.collection('registrosGuias').doc(doc.id)));
             const batchDel2 = db.batch();
             registrosEmbarcacoes.forEach(doc => batchDel2.delete(db.collection('registrosEmbarcacoes').doc(doc.id)));
+            const batchDel3 = db.batch();
+            prestacoes.forEach(doc => batchDel3.delete(db.collection('prestacoes').doc(doc.id)));
 
-            Promise.all([batchDel1.commit(), batchDel2.commit()]).then(() => {
+            Promise.all([batchDel1.commit(), batchDel2.commit(), batchDel3.commit()]).then(() => {
                 const batchGuias = db.batch();
                 data.registrosGuias.forEach(g => {
                     const { id, timestamp, ...resto } = g;
@@ -957,6 +1129,18 @@
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 });
+
+                if (data.prestacoes) {
+                    const batchPrestacoes = db.batch();
+                    data.prestacoes.forEach(p => {
+                        const { id, timestamp, ...resto } = p;
+                        batchPrestacoes.set(db.collection('prestacoes').doc(), {
+                            ...resto,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    });
+                    batchPrestacoes.commit();
+                }
 
                 if (data.config) {
                     db.collection('config').doc('principal').set(data.config);
@@ -987,6 +1171,18 @@
                 });
             });
 
+            if (data.prestacoes) {
+                const batchPrestacoes = db.batch();
+                data.prestacoes.forEach(p => {
+                    const { id, timestamp, ...resto } = p;
+                    batchPrestacoes.set(db.collection('prestacoes').doc(), {
+                        ...resto,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                batchPrestacoes.commit();
+            }
+
             Promise.all([batchGuias.commit(), batchBarcos.commit()])
                 .then(() => alert('✅ Backup mesclado!'))
                 .catch(err => alert('Erro: ' + err.message));
@@ -1007,8 +1203,10 @@
             registrosGuias.forEach(doc => batch1.delete(db.collection('registrosGuias').doc(doc.id)));
             const batch2 = db.batch();
             registrosEmbarcacoes.forEach(doc => batch2.delete(db.collection('registrosEmbarcacoes').doc(doc.id)));
+            const batch3 = db.batch();
+            prestacoes.forEach(doc => batch3.delete(db.collection('prestacoes').doc(doc.id)));
 
-            Promise.all([batch1.commit(), batch2.commit()])
+            Promise.all([batch1.commit(), batch2.commit(), batch3.commit()])
                 .then(() => alert('Dados apagados.'))
                 .catch(err => alert('Erro: ' + err.message));
         }
