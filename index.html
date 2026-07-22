@@ -187,7 +187,40 @@
         <!-- ABA 3: CONTAS -->
         <div id="tab-contas" class="tab-content hidden">
             <h2 class="font-bold text-lg mb-3 text-blue-700"> Prestação de Contas</h2>
-            
+
+            <!-- RELATÓRIO POR EMBARCAÇÃO -->
+            <div class="card p-4 mb-4 border-2 border-blue-500">
+                <h3 class="font-bold text-blue-700 mb-1">🚤 Relatório por Embarcação</h3>
+                <p class="text-xs text-gray-500 mb-3">Escolha a embarcação e o período para ver os dias e a quantidade de passageiros.</p>
+                <div class="grid grid-cols-1 gap-3 mb-3">
+                    <div>
+                        <label for="relatorioBarcoNome" class="block text-xs font-semibold mb-1">Embarcação:</label>
+                        <select id="relatorioBarcoNome" onchange="atualizarPeriodoRelatorioBarco(true)" class="w-full border-2 border-blue-500 rounded p-2 bg-white">
+                            <option value="">Selecione uma embarcação</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label for="relatorioBarcoDataInicio" class="block text-xs font-semibold mb-1">De:</label>
+                            <input type="date" id="relatorioBarcoDataInicio" class="w-full border-2 border-blue-500 rounded p-2 bg-white">
+                        </div>
+                        <div>
+                            <label for="relatorioBarcoDataFim" class="block text-xs font-semibold mb-1">Até:</label>
+                            <input type="date" id="relatorioBarcoDataFim" class="w-full border-2 border-blue-500 rounded p-2 bg-white">
+                        </div>
+                    </div>
+                </div>
+                <button onclick="gerarRelatorioBarco()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow">
+                    🔍 Gerar Relatório da Embarcação
+                </button>
+                <div id="relatorio-barco-resultado" class="mt-4">
+                    <p class="text-gray-500 text-sm text-center">Selecione uma embarcação e o período.</p>
+                </div>
+                <button id="exportar-relatorio-barco" onclick="exportarRelatorioBarco()" class="hidden w-full mt-3 bg-gray-700 text-white font-bold py-2 rounded-lg shadow">
+                    📥 Exportar esta Embarcação (CSV)
+                </button>
+            </div>
+
             <!-- FILTRO DE PERÍODO -->
             <div class="card p-4 mb-4">
                 <h3 class="font-bold text-blue-700 mb-2">📅 Período do Relatório</h3>
@@ -401,6 +434,246 @@
         function escapeCSV(valor) {
             const str = String(valor || '').replace(/"/g, '""');
             return `"${str}"`;
+        }
+
+        function chaveEmbarcacao(nome) {
+            const chaveBase = String(nome || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLocaleLowerCase('pt-BR')
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim();
+            const apelidos = {
+                'verlho bill': 'velho bill'
+            };
+            return apelidos[chaveBase] || chaveBase;
+        }
+
+        function capitalizarNomeEmbarcacao(nome) {
+            return String(nome || '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLocaleLowerCase('pt-BR')
+                .replace(/(^|[\s-])([a-zà-öø-ÿ])/g, (_, separador, letra) =>
+                    separador + letra.toLocaleUpperCase('pt-BR')
+                );
+        }
+
+        function nomeCanonicoEmbarcacao(nome) {
+            const chave = chaveEmbarcacao(nome);
+            const nomesConhecidos = {
+                'velho bill': 'Velho Bill',
+                'ze maria': 'Zé Maria'
+            };
+            if (nomesConhecidos[chave]) return nomesConhecidos[chave];
+
+            const candidatos = registrosEmbarcacoes
+                .map(registro => registro.catamaran)
+                .filter(candidato => chaveEmbarcacao(candidato) === chave)
+                .sort((a, b) => {
+                    const acentosA = (String(a).match(/[^\x00-\x7F]/g) || []).length;
+                    const acentosB = (String(b).match(/[^\x00-\x7F]/g) || []).length;
+                    return acentosB - acentosA;
+                });
+
+            return capitalizarNomeEmbarcacao(candidatos[0] || nome);
+        }
+
+        function mesmaEmbarcacao(nomeA, nomeB) {
+            return chaveEmbarcacao(nomeA) === chaveEmbarcacao(nomeB);
+        }
+
+        function obterDadosRelatorioBarco() {
+            const nome = document.getElementById('relatorioBarcoNome').value;
+            const dataInicio = document.getElementById('relatorioBarcoDataInicio').value;
+            const dataFim = document.getElementById('relatorioBarcoDataFim').value;
+            const dados = ordenarPorDataHora(
+                registrosEmbarcacoes.filter(e =>
+                    mesmaEmbarcacao(e.catamaran, nome) &&
+                    e.data >= dataInicio &&
+                    e.data <= dataFim
+                )
+            );
+            return { nome, dataInicio, dataFim, dados };
+        }
+
+        function totalizarRelatorioBarco(dados) {
+            return dados.reduce((total, registro) => {
+                total.adultos += Number(registro.adultos) || 0;
+                total.criancas += Number(registro.criancas) || 0;
+                total.bebes += Number(registro.bebes) || 0;
+                total.cortesia += Number(registro.cortesia) || 0;
+                total.totalPax += Number(registro.totalPax) || 0;
+                total.valorRepasse += Number(registro.valorRepasse) || 0;
+                return total;
+            }, {
+                adultos: 0,
+                criancas: 0,
+                bebes: 0,
+                cortesia: 0,
+                totalPax: 0,
+                valorRepasse: 0
+            });
+        }
+
+        function agruparRelatorioBarcoPorDia(dados) {
+            const grupos = dados.reduce((porDia, registro) => {
+                if (!porDia[registro.data]) porDia[registro.data] = [];
+                porDia[registro.data].push(registro);
+                return porDia;
+            }, {});
+
+            return Object.keys(grupos)
+                .sort((a, b) => a.localeCompare(b))
+                .map(data => ({
+                    data,
+                    lancamentos: grupos[data],
+                    totais: totalizarRelatorioBarco(grupos[data])
+                }));
+        }
+
+        function atualizarOpcoesRelatorioBarco() {
+            const select = document.getElementById('relatorioBarcoNome');
+            const selecionado = select.value;
+            const barcos = [...new Set(
+                registrosEmbarcacoes
+                    .map(e => nomeCanonicoEmbarcacao(e.catamaran))
+                    .filter(Boolean)
+            )]
+                .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+            select.innerHTML = '<option value="">Selecione uma embarcação</option>' +
+                barcos.map(barco => `<option value="${escaparHTML(barco)}">${escaparHTML(barco)}</option>`).join('');
+
+            if (barcos.includes(selecionado)) {
+                select.value = selecionado;
+            }
+
+            atualizarPeriodoRelatorioBarco();
+        }
+
+        function formatarDataRelatorio(data) {
+            const [ano, mes, dia] = data.split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+
+        function atualizarPeriodoRelatorioBarco(redefinirPeriodo = false) {
+            const nome = document.getElementById('relatorioBarcoNome').value;
+            const campoInicio = document.getElementById('relatorioBarcoDataInicio');
+            const campoFim = document.getElementById('relatorioBarcoDataFim');
+            const datas = [...new Set(
+                registrosEmbarcacoes
+                    .filter(registro => mesmaEmbarcacao(registro.catamaran, nome) && registro.data)
+                    .map(registro => registro.data)
+            )].sort((a, b) => a.localeCompare(b));
+
+            if (datas.length === 0) {
+                campoInicio.value = '';
+                campoFim.value = '';
+                campoInicio.removeAttribute('min');
+                campoInicio.removeAttribute('max');
+                campoFim.removeAttribute('min');
+                campoFim.removeAttribute('max');
+            } else {
+                const primeiraData = datas[0];
+                const ultimaData = datas[datas.length - 1];
+                campoInicio.min = primeiraData;
+                campoInicio.max = ultimaData;
+                campoFim.min = primeiraData;
+                campoFim.max = ultimaData;
+
+                if (redefinirPeriodo || !campoInicio.value || campoInicio.value < primeiraData || campoInicio.value > ultimaData) {
+                    campoInicio.value = primeiraData;
+                }
+                if (redefinirPeriodo || !campoFim.value || campoFim.value < primeiraData || campoFim.value > ultimaData) {
+                    campoFim.value = ultimaData;
+                }
+            }
+
+            document.getElementById('relatorio-barco-resultado').innerHTML =
+                '<p class="text-gray-500 text-sm text-center">Confira o período e toque em gerar relatório.</p>';
+            document.getElementById('exportar-relatorio-barco').classList.add('hidden');
+        }
+
+        function gerarRelatorioBarco() {
+            const { nome, dataInicio, dataFim, dados } = obterDadosRelatorioBarco();
+            const resultado = document.getElementById('relatorio-barco-resultado');
+            const botaoExportar = document.getElementById('exportar-relatorio-barco');
+
+            if (!nome || !dataInicio || !dataFim) {
+                resultado.innerHTML = '<p class="text-gray-500 text-sm text-center">Selecione uma embarcação e o período.</p>';
+                botaoExportar.classList.add('hidden');
+                return;
+            }
+
+            if (dataInicio > dataFim) {
+                resultado.innerHTML = '<p class="text-red-600 text-sm text-center">A data inicial não pode ser posterior à data final.</p>';
+                botaoExportar.classList.add('hidden');
+                return;
+            }
+
+            if (dados.length === 0) {
+                resultado.innerHTML = `<p class="text-gray-500 text-sm text-center">Nenhum lançamento de <strong>${escaparHTML(nome)}</strong> entre ${formatarDataRelatorio(dataInicio)} e ${formatarDataRelatorio(dataFim)}.</p>`;
+                botaoExportar.classList.add('hidden');
+                return;
+            }
+
+            const totais = totalizarRelatorioBarco(dados);
+            const dias = agruparRelatorioBarcoPorDia(dados);
+            const periodoTexto = dataInicio === dataFim
+                ? `Data: ${formatarDataRelatorio(dataInicio)}`
+                : `Período: ${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}`;
+            const resumoDias = dias.map(dia => `
+                <div class="bg-white border border-blue-100 rounded-lg p-3 mt-2">
+                    <div class="flex justify-between items-start gap-2">
+                        <div>
+                            <div class="font-bold text-blue-800">${formatarDataRelatorio(dia.data)}</div>
+                            <div class="text-xs text-gray-500">${dia.lancamentos.length} lançamento${dia.lancamentos.length === 1 ? '' : 's'}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-bold text-blue-800">${dia.totais.totalPax}</div>
+                            <div class="text-xs text-gray-500">passageiros</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 mt-2 text-xs text-gray-700">
+                        <span>👨 Adultos: <strong>${dia.totais.adultos}</strong></span>
+                        <span>🧒 Crianças: <strong>${dia.totais.criancas}</strong></span>
+                        <span>👶 Bebês: <strong>${dia.totais.bebes}</strong></span>
+                        <span>🎁 Cortesias: <strong>${dia.totais.cortesia}</strong></span>
+                    </div>
+                    <div class="text-right text-xs font-bold text-green-700 mt-2">Repasse: ${formatarMoeda(dia.totais.valorRepasse)}</div>
+                </div>
+            `).join('');
+
+            resultado.innerHTML = `
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <div class="font-bold text-blue-800">${escaparHTML(nome)}</div>
+                            <div class="text-xs text-gray-500">${periodoTexto} · ${dias.length} dia${dias.length === 1 ? '' : 's'} com embarque</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs text-gray-500">Total do repasse</div>
+                            <div class="font-bold text-green-700">${formatarMoeda(totais.valorRepasse)}</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div class="bg-white rounded p-2">👨 Adultos: <strong>${totais.adultos}</strong></div>
+                        <div class="bg-white rounded p-2">🧒 Crianças: <strong>${totais.criancas}</strong></div>
+                        <div class="bg-white rounded p-2">👶 Bebês: <strong>${totais.bebes}</strong></div>
+                        <div class="bg-white rounded p-2">🎁 Cortesias: <strong>${totais.cortesia}</strong></div>
+                    </div>
+                    <div class="flex justify-between border-t border-blue-200 mt-3 pt-3 font-bold">
+                        <span>Total de passageiros</span>
+                        <span class="text-blue-800">${totais.totalPax}</span>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-blue-200">
+                        <div class="font-bold text-sm text-blue-800 mb-1">Movimento por dia</div>
+                        ${resumoDias}
+                    </div>
+                </div>
+            `;
+            botaoExportar.classList.remove('hidden');
         }
 
         function ordenarPorDataHora(array) {
@@ -619,7 +892,7 @@
 
         function salvarBarco() {
             const data = dataGlobal;
-            const barco = document.getElementById('nomeBarco').value.trim();
+            const barco = nomeCanonicoEmbarcacao(document.getElementById('nomeBarco').value.trim());
             const ad = obterNumero('adultosBarco');
             const cr = obterNumero('criancasBarco');
             const bb = obterNumero('bebesBarco');
@@ -654,9 +927,10 @@
 
         // NOVO: Marcar Prestação de Contas
         function marcarPrestacao(tipo, nome, periodoInicio, periodoFim, valor) {
+            const nomePrestacao = tipo === 'catamara' ? nomeCanonicoEmbarcacao(nome) : nome;
             const prestacao = {
                 tipo, // 'catamara' ou 'agencia'
-                nome,
+                nome: nomePrestacao,
                 periodoInicio,
                 periodoFim,
                 valor,
@@ -667,7 +941,7 @@
 
             db.collection('prestacoes').add(prestacao)
                 .then(() => {
-                    alert(`✅ Prestação registrada!\n\n${nome}\nPeríodo: ${periodoInicio} a ${periodoFim}\nValor: ${formatarMoeda(valor)}\nData: ${prestacao.dataPrestacao} ${prestacao.horaPrestacao}`);
+                    alert(`✅ Prestação registrada!\n\n${nomePrestacao}\nPeríodo: ${periodoInicio} a ${periodoFim}\nValor: ${formatarMoeda(valor)}\nData: ${prestacao.dataPrestacao} ${prestacao.horaPrestacao}`);
                 })
                 .catch((error) => alert('Erro: ' + error.message));
         }
@@ -753,7 +1027,7 @@
                     listaBarcos.innerHTML += `
                         <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-blue-500">
                             <div class="flex justify-between font-bold">
-                                <span>${escaparHTML(e.catamaran)}</span>
+                                <span>${escaparHTML(nomeCanonicoEmbarcacao(e.catamaran))}</span>
                                 <span class="text-gray-500 text-xs">${e.data} ${e.hora}</span>
                             </div>
                             <div class="flex justify-between text-xs mb-2">
@@ -771,8 +1045,9 @@
             const relCat = {};
             if (filtroTipoRelatorio !== 'comissao') {
                 contasBarcos.forEach(e => {
-                    if (!relCat[e.catamaran]) relCat[e.catamaran] = 0;
-                    relCat[e.catamaran] += e.valorRepasse;
+                    const catamaran = nomeCanonicoEmbarcacao(e.catamaran);
+                    if (!relCat[catamaran]) relCat[catamaran] = 0;
+                    relCat[catamaran] += Number(e.valorRepasse) || 0;
                 });
             }
             const divCat = document.getElementById('rel-catamaras');
@@ -784,7 +1059,7 @@
                 divCat.innerHTML = Object.entries(relCat).map(([cat, val]) => {
                     // Encontrar última prestação deste catamarã
                     const ultimaPrestacao = prestacoes
-                        .filter(p => p.tipo === 'catamara' && p.nome === cat)
+                        .filter(p => p.tipo === 'catamara' && mesmaEmbarcacao(p.nome, cat))
                         .sort((a, b) => b.dataPrestacao.localeCompare(a.dataPrestacao))[0];
                     
                     const infoPrestacao = ultimaPrestacao 
@@ -883,8 +1158,11 @@
             document.getElementById('guias-list').innerHTML = guias.map(g => `<option value="${escaparHTML(g)}">`).join('');
             const agencias = [...new Set(registrosGuias.map(e => e.agencia))];
             document.getElementById('agencias-list').innerHTML = agencias.map(a => `<option value="${escaparHTML(a)}">`).join('');
-            const barcos = [...new Set(registrosEmbarcacoes.map(e => e.catamaran))];
+            const barcos = [...new Set(
+                registrosEmbarcacoes.map(e => nomeCanonicoEmbarcacao(e.catamaran))
+            )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
             document.getElementById('barcos-list').innerHTML = barcos.map(b => `<option value="${escaparHTML(b)}">`).join('');
+            atualizarOpcoesRelatorioBarco();
 
             // Atualizar histórico
             atualizarHistorico();
@@ -895,8 +1173,9 @@
             // Última prestação por catamarã
             const ultimasCatamaras = {};
             prestacoes.filter(p => p.tipo === 'catamara').forEach(p => {
-                if (!ultimasCatamaras[p.nome] || p.dataPrestacao > ultimasCatamaras[p.nome].dataPrestacao) {
-                    ultimasCatamaras[p.nome] = p;
+                const nome = nomeCanonicoEmbarcacao(p.nome);
+                if (!ultimasCatamaras[nome] || p.dataPrestacao > ultimasCatamaras[nome].dataPrestacao) {
+                    ultimasCatamaras[nome] = p;
                 }
             });
 
@@ -951,7 +1230,7 @@
                 divTodas.innerHTML = todasPrestacoes.slice().reverse().map(p => `
                     <div class="bg-gray-50 p-3 rounded text-sm border-l-4 ${p.tipo === 'catamara' ? 'border-green-500' : 'border-purple-500'}">
                         <div class="flex justify-between font-bold">
-                            <span>${p.tipo === 'catamara' ? '🚤' : ''} ${escaparHTML(p.nome)}</span>
+                            <span>${p.tipo === 'catamara' ? '🚤' : ''} ${escaparHTML(p.tipo === 'catamara' ? nomeCanonicoEmbarcacao(p.nome) : p.nome)}</span>
                             <span class="text-gray-500 text-xs">${p.dataPrestacao} ${p.horaPrestacao}</span>
                         </div>
                         <div class="text-xs text-gray-600 mb-1">
@@ -1008,7 +1287,7 @@
             
             let csv = 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
             dados.forEach(e => {
-                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.catamaran)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
+                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(nomeCanonicoEmbarcacao(e.catamaran))};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
             });
             
             const BOM = '\uFEFF';
@@ -1016,6 +1295,31 @@
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = `barcos_${dataGlobal}.csv`;
+            link.click();
+        }
+
+        function exportarRelatorioBarco() {
+            const { nome, dataInicio, dataFim, dados } = obterDadosRelatorioBarco();
+            if (!nome || !dataInicio || !dataFim) return alert('Selecione a embarcação e o período.');
+            if (dataInicio > dataFim) return alert('A data inicial não pode ser posterior à data final.');
+            if (dados.length === 0) return alert('Nenhum lançamento para esta embarcação no período escolhido.');
+
+            const totais = totalizarRelatorioBarco(dados);
+            const dias = agruparRelatorioBarcoPorDia(dados);
+            let csv = `RELATÓRIO DA EMBARCAÇÃO;${escapeCSV(nome)}\n`;
+            csv += `PERÍODO;${escapeCSV(dataInicio)};${escapeCSV(dataFim)}\n\n`;
+            csv += 'Data;Lançamentos;Adultos;Crianças;Bebês;Cortesia;Total de Passageiros;Valor Repasse\n';
+            dias.forEach(dia => {
+                csv += `${escapeCSV(dia.data)};${dia.lancamentos.length};${dia.totais.adultos};${dia.totais.criancas};${dia.totais.bebes};${dia.totais.cortesia};${dia.totais.totalPax};${dia.totais.valorRepasse}\n`;
+            });
+            csv += `\nTOTAIS;${dados.length};${totais.adultos};${totais.criancas};${totais.bebes};${totais.cortesia};${totais.totalPax};${totais.valorRepasse}\n`;
+
+            const BOM = '\uFEFF';
+            const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const nomeArquivo = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '_');
+            link.download = `relatorio_${nomeArquivo}_${dataInicio}_a_${dataFim}.csv`;
             link.click();
         }
 
@@ -1046,7 +1350,7 @@
                 csv += '\n=== EMBARCAÇÕES ===\n';
                 csv += 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
                 dadosBarcos.forEach(e => {
-                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.catamaran)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
+                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(nomeCanonicoEmbarcacao(e.catamaran))};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
                 });
             }
             
