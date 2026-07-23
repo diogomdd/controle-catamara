@@ -624,7 +624,7 @@
             }, {});
 
             return Object.keys(grupos)
-                .sort((a, b) => a.localeCompare(b))
+                .sort((a, b) => b.localeCompare(a))
                 .map(data => ({
                     data,
                     lancamentos: grupos[data],
@@ -1413,8 +1413,12 @@
                 divCat.innerHTML = Object.entries(relCat)
                     .sort(([catA], [catB]) => catA.localeCompare(catB, 'pt-BR'))
                     .map(([cat, dadosCat]) => {
-                    const linhasDiarias = Object.entries(dadosCat.dias)
-                        .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+                    const diasDoCatamara = Object.entries(dadosCat.dias)
+                        .sort(([dataA], [dataB]) => dataB.localeCompare(dataA));
+                    const saldoDevedor = diasDoCatamara.reduce((saldo, [data, dia]) =>
+                        obterPrestacaoDiaria('catamara', cat, data) ? saldo : saldo + dia.valor,
+                    0);
+                    const linhasDiarias = diasDoCatamara
                         .map(([data, dia]) => renderizarLinhaPagamentoDiario(
                             'catamara',
                             cat,
@@ -1427,14 +1431,18 @@
                     return `
                         <details class="group border-2 border-blue-200 rounded-xl p-3 mb-4 bg-white">
                             <summary class="cursor-pointer list-none">
-                                <div class="flex justify-between items-start gap-2">
-                                    <div>
-                                        <div class="font-bold text-blue-800">🚤 ${escaparHTML(cat)}</div>
-                                        <div class="text-xs text-gray-500">${dadosCat.pax} passageiros no período</div>
-                                    </div>
-                                    <div class="text-right">
+                                <div>
+                                    <div class="font-bold text-blue-800">🚤 ${escaparHTML(cat)}</div>
+                                    <div class="text-xs text-gray-500">${dadosCat.pax} passageiros no período</div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 mt-3">
+                                    <div class="bg-blue-50 rounded-lg p-2">
                                         <div class="text-xs text-gray-500">Total do período</div>
                                         <div class="font-bold text-green-700">${formatarMoeda(dadosCat.valor)}</div>
+                                    </div>
+                                    <div class="${saldoDevedor > 0 ? 'bg-red-50' : 'bg-green-50'} rounded-lg p-2 text-right">
+                                        <div class="text-xs text-gray-500">Saldo devedor</div>
+                                        <div class="font-bold ${saldoDevedor > 0 ? 'text-red-600' : 'text-green-700'}">${formatarMoeda(saldoDevedor)}</div>
                                     </div>
                                 </div>
                                 <div class="text-xs text-blue-600 font-semibold mt-2">
