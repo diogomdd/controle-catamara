@@ -264,7 +264,7 @@
             <!-- SEÇÃO EMBARQUE -->
             <div id="secao-embarque" class="card p-4 mb-4">
                 <h3 class="font-bold text-green-700 mb-2">💰 Repasse aos Donos (Embarque)</h3>
-                <p class="text-xs text-gray-500 mb-3">Cada linha representa uma data. Marque o pagamento e informe como ele foi feito.</p>
+                <p class="text-xs text-gray-500 mb-3">Cada linha representa uma data. O pagamento pode ser total ou dividido em várias partes.</p>
                 <div id="rel-catamaras"></div>
             </div>
 
@@ -422,25 +422,41 @@
             <div class="flex justify-between items-start gap-3 mb-4">
                 <div>
                     <h2 class="font-bold text-lg text-blue-800">Registrar pagamento</h2>
-                    <p class="text-xs text-gray-500">Marque somente o valor referente a esta data.</p>
+                    <p class="text-xs text-gray-500">Registre o valor pago agora. O restante poderá ser pago em outro dia.</p>
                 </div>
                 <button type="button" onclick="fecharModalPagamento()" class="text-gray-500 text-2xl leading-none" aria-label="Fechar">×</button>
             </div>
 
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm">
                 <div class="font-bold text-blue-800" id="pagamento-nome"></div>
-                <div class="flex justify-between mt-1">
-                    <span id="pagamento-data"></span>
-                    <span class="font-bold text-green-700" id="pagamento-valor"></span>
+                <div class="text-xs text-gray-600 mt-1">Movimento: <span id="pagamento-data"></span></div>
+                <div class="grid grid-cols-3 gap-2 mt-3 text-center">
+                    <div class="bg-white rounded p-2">
+                        <div class="text-xs text-gray-500">Total do dia</div>
+                        <div class="font-bold text-blue-800" id="pagamento-total"></div>
+                    </div>
+                    <div class="bg-white rounded p-2">
+                        <div class="text-xs text-gray-500" id="pagamento-ja-pago-rotulo">Já pago</div>
+                        <div class="font-bold text-green-700" id="pagamento-ja-pago"></div>
+                    </div>
+                    <div class="bg-white rounded p-2">
+                        <div class="text-xs text-gray-500">Disponível</div>
+                        <div class="font-bold text-orange-700" id="pagamento-saldo"></div>
+                    </div>
                 </div>
             </div>
+
+            <label for="pagamento-valor-parcela" class="block text-sm font-semibold mb-1">Valor deste pagamento:</label>
+            <input id="pagamento-valor-parcela" type="number" min="0.01" step="0.01" inputmode="decimal" oninput="atualizarPreviaPagamento()" class="w-full border-2 border-green-500 rounded p-2 mb-1 text-lg font-bold">
+            <p id="pagamento-restante" class="text-xs font-bold text-orange-700 mb-1"></p>
+            <p id="pagamento-dica" class="text-xs text-gray-500 mb-4">Digite o saldo inteiro ou somente a parte que será paga agora.</p>
 
             <label for="pagamento-observacao" class="block text-sm font-semibold mb-1">Como foi pago / observação:</label>
             <textarea id="pagamento-observacao" rows="3" maxlength="300" class="w-full border-2 border-blue-500 rounded p-2 mb-4" placeholder="Ex: Pix, dinheiro, transferência, pago para João..."></textarea>
 
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" onclick="fecharModalPagamento()" class="bg-gray-500 text-white font-bold py-2 rounded-lg">Cancelar</button>
-                <button type="button" id="confirmar-pagamento" onclick="salvarPagamentoDiario()" class="bg-green-600 text-white font-bold py-2 rounded-lg">✅ Confirmar pago</button>
+                <button type="button" id="confirmar-pagamento" onclick="salvarPagamentoDiario()" class="bg-green-600 text-white font-bold py-2 rounded-lg">✅ Registrar pagamento</button>
             </div>
         </div>
     </div>
@@ -1175,7 +1191,7 @@
                 : nomePrestacao === nomeComparado;
         }
 
-        function obterPrestacaoDiaria(tipo, nome, dataMovimento) {
+        function obterPrestacoesDiarias(tipo, nome, dataMovimento) {
             return prestacoes
                 .filter(p =>
                     p.tipo === tipo &&
@@ -1189,31 +1205,128 @@
                     const momentoA = `${a.dataPrestacao || ''} ${a.horaPrestacao || ''}`;
                     const momentoB = `${b.dataPrestacao || ''} ${b.horaPrestacao || ''}`;
                     return momentoB.localeCompare(momentoA);
-                })[0];
+                });
         }
 
-        function abrirPagamentoDiario(tipo, nome, dataMovimento, valor) {
+        function obterPrestacaoDiaria(tipo, nome, dataMovimento) {
+            return obterPrestacoesDiarias(tipo, nome, dataMovimento)[0];
+        }
+
+        function calcularResumoValoresPagamento(pagamentos, valorTotal) {
+            const totalDoDia = Number(valorTotal) || 0;
+            const totalPago = pagamentos.reduce((total, pagamento) =>
+                total + Math.max(0, Number(pagamento.valor) || 0),
+            0);
+            const saldoRestante = Math.max(0, totalDoDia - totalPago);
+
+            return {
+                totalPago,
+                saldoRestante,
+                quitado: totalDoDia > 0 && totalPago > 0 && saldoRestante < 0.01,
+                parcial: totalPago > 0 && saldoRestante >= 0.01
+            };
+        }
+
+        function obterResumoPagamentoDiario(tipo, nome, dataMovimento, valorTotal) {
+            const pagamentos = obterPrestacoesDiarias(tipo, nome, dataMovimento);
+            return {
+                pagamentos,
+                ...calcularResumoValoresPagamento(pagamentos, valorTotal)
+            };
+        }
+
+        function atualizarPreviaPagamento() {
+            if (!pagamentoEmEdicao) return;
+
+            const elemento = document.getElementById('pagamento-restante');
+            const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
+            const valorPagamento = Number(valorDigitado);
+
+            if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
+                elemento.className = 'text-xs font-bold text-red-600 mb-1';
+                elemento.innerText = 'Informe um valor maior que zero.';
+                return;
+            }
+
+            if (valorPagamento > pagamentoEmEdicao.valorMaximo + 0.009) {
+                elemento.className = 'text-xs font-bold text-red-600 mb-1';
+                elemento.innerText = `Valor acima do disponível em ${formatarMoeda(valorPagamento - pagamentoEmEdicao.valorMaximo)}.`;
+                return;
+            }
+
+            const restante = Math.max(0, pagamentoEmEdicao.valorMaximo - valorPagamento);
+            elemento.className = restante < 0.01
+                ? 'text-xs font-bold text-green-700 mb-1'
+                : 'text-xs font-bold text-orange-700 mb-1';
+            elemento.innerText = restante < 0.01
+                ? '✅ Este pagamento quitará esta data.'
+                : `🟡 Depois deste pagamento ainda faltarão ${formatarMoeda(restante)}.`;
+        }
+
+        function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = null) {
             const nomePrestacao = tipo === 'catamara' ? nomeCanonicoEmbarcacao(nome) : nome;
-            const existente = obterPrestacaoDiaria(tipo, nomePrestacao, dataMovimento);
+            const pagamentos = obterPrestacoesDiarias(tipo, nomePrestacao, dataMovimento);
+            const existente = prestacaoId
+                ? pagamentos.find(p => p.id === prestacaoId)
+                : (tipo === 'catamara' ? null : pagamentos[0]);
+            const valorTotal = Number(valor) || 0;
+            const valorPagoOutros = pagamentos.reduce((total, pagamento) =>
+                pagamento.id === existente?.id
+                    ? total
+                    : total + Math.max(0, Number(pagamento.valor) || 0),
+            0);
+            const valorMaximo = Math.max(0, valorTotal - valorPagoOutros);
+            const valorInicial = existente
+                ? Math.min(Math.max(0, Number(existente.valor) || 0), valorMaximo)
+                : valorMaximo;
+
             pagamentoEmEdicao = {
                 tipo,
                 nome: nomePrestacao,
                 dataMovimento,
-                valor: Number(valor) || 0,
-                prestacaoId: existente?.id || null
+                valorTotal,
+                valorPagoOutros,
+                valorMaximo,
+                prestacaoId: existente?.id || null,
+                prestacaoExistente: existente || null
             };
 
             document.getElementById('pagamento-nome').innerText = nomePrestacao;
             document.getElementById('pagamento-data').innerText = formatarDataRelatorio(dataMovimento);
-            document.getElementById('pagamento-valor').innerText = formatarMoeda(pagamentoEmEdicao.valor);
+            document.getElementById('pagamento-total').innerText = formatarMoeda(valorTotal);
+            document.getElementById('pagamento-ja-pago-rotulo').innerText = existente ? 'Outras parcelas' : 'Já pago';
+            document.getElementById('pagamento-ja-pago').innerText = formatarMoeda(valorPagoOutros);
+            document.getElementById('pagamento-saldo').innerText = formatarMoeda(valorMaximo);
+
+            const campoValor = document.getElementById('pagamento-valor-parcela');
+            campoValor.value = valorInicial.toFixed(2);
+            campoValor.max = valorMaximo.toFixed(2);
+            campoValor.readOnly = tipo !== 'catamara';
+            campoValor.classList.toggle('bg-gray-100', tipo !== 'catamara');
+            atualizarPreviaPagamento();
+
+            document.getElementById('pagamento-dica').innerText = tipo === 'catamara'
+                ? 'Para pagamento parcial, digite uma parte do saldo. O restante continuará pendente nesta data.'
+                : 'O valor referente a esta data será registrado integralmente.';
             document.getElementById('pagamento-observacao').value = existente?.observacao || '';
-            document.getElementById('confirmar-pagamento').innerText = existente ? '💾 Atualizar pagamento' : '✅ Confirmar pago';
+            document.getElementById('confirmar-pagamento').innerText = existente
+                ? '💾 Atualizar pagamento'
+                : '✅ Registrar pagamento';
             document.getElementById('modal-pagamento').classList.remove('hidden');
-            setTimeout(() => document.getElementById('pagamento-observacao').focus(), 50);
+            setTimeout(() => {
+                if (tipo === 'catamara') {
+                    campoValor.focus();
+                    campoValor.select();
+                } else {
+                    document.getElementById('pagamento-observacao').focus();
+                }
+            }, 50);
         }
 
         function fecharModalPagamento() {
             pagamentoEmEdicao = null;
+            document.getElementById('pagamento-valor-parcela').value = '';
+            document.getElementById('pagamento-restante').innerText = '';
             document.getElementById('pagamento-observacao').value = '';
             document.getElementById('modal-pagamento').classList.add('hidden');
         }
@@ -1224,20 +1337,41 @@
             const observacao = document.getElementById('pagamento-observacao').value.trim();
             if (!observacao) return alert('Informe como o pagamento foi feito ou escreva uma observação.');
 
+            const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
+            const valorPagamento = pagamentoEmEdicao.tipo === 'catamara'
+                ? Number(valorDigitado)
+                : pagamentoEmEdicao.valorTotal;
+
+            if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
+                return alert('Informe um valor de pagamento maior que zero.');
+            }
+
+            if (valorPagamento > pagamentoEmEdicao.valorMaximo + 0.009) {
+                return alert(`O valor não pode ser maior que o saldo disponível de ${formatarMoeda(pagamentoEmEdicao.valorMaximo)}.`);
+            }
+
             const botao = document.getElementById('confirmar-pagamento');
             botao.disabled = true;
             botao.innerText = 'Salvando...';
 
+            const prestacaoExistente = pagamentoEmEdicao.prestacaoExistente;
+            const saldoAposPagamento = Math.max(
+                0,
+                pagamentoEmEdicao.valorTotal - pagamentoEmEdicao.valorPagoOutros - valorPagamento
+            );
             const prestacao = {
                 tipo: pagamentoEmEdicao.tipo,
                 nome: pagamentoEmEdicao.nome,
                 dataMovimento: pagamentoEmEdicao.dataMovimento,
                 periodoInicio: pagamentoEmEdicao.dataMovimento,
                 periodoFim: pagamentoEmEdicao.dataMovimento,
-                valor: pagamentoEmEdicao.valor,
+                valor: valorPagamento,
+                valorTotalMovimento: pagamentoEmEdicao.valorTotal,
+                pagamentoParcial: saldoAposPagamento >= 0.01,
+                statusPagamento: saldoAposPagamento < 0.01 ? 'quitado' : 'parcial',
                 observacao,
-                dataPrestacao: dataLocalHoje(),
-                horaPrestacao: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                dataPrestacao: prestacaoExistente?.dataPrestacao || dataLocalHoje(),
+                horaPrestacao: prestacaoExistente?.horaPrestacao || new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
 
@@ -1248,33 +1382,67 @@
             referencia.set(prestacao, { merge: true })
                 .then(() => {
                     fecharModalPagamento();
-                    alert(`✅ Pagamento registrado!\n\n${prestacao.nome}\nData do movimento: ${formatarDataRelatorio(prestacao.dataMovimento)}\nValor: ${formatarMoeda(prestacao.valor)}\nObservação: ${observacao}`);
+                    const status = saldoAposPagamento < 0.01
+                        ? '✅ Esta data ficou quitada.'
+                        : `🟡 Pagamento parcial. Ainda faltam ${formatarMoeda(saldoAposPagamento)}.`;
+                    alert(`✅ Pagamento registrado!\n\n${prestacao.nome}\nData do movimento: ${formatarDataRelatorio(prestacao.dataMovimento)}\nValor pago agora: ${formatarMoeda(prestacao.valor)}\n${status}\nObservação: ${observacao}`);
                 })
                 .catch((error) => alert('Erro: ' + error.message))
                 .finally(() => {
                     botao.disabled = false;
-                    botao.innerText = '✅ Confirmar pago';
+                    botao.innerText = '✅ Registrar pagamento';
                 });
         }
 
         function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes) {
-            const prestacao = obterPrestacaoDiaria(tipo, nome, dataMovimento);
+            const resumoPagamento = obterResumoPagamentoDiario(tipo, nome, dataMovimento, valor);
+            const prestacao = resumoPagamento.pagamentos[0];
             const nomeArgumento = escaparHTML(JSON.stringify(nome));
             const valorNumerico = Number(valor) || 0;
-            const classeCartao = prestacao
+            const classeCartao = resumoPagamento.quitado
                 ? 'bg-green-50 border-green-300'
-                : 'bg-gray-50 border-gray-200';
-            const status = prestacao
-                ? `<div class="text-xs text-green-700 font-bold">✅ Pago em ${formatarDataHistorico(prestacao.dataPrestacao)} ${escaparHTML(prestacao.horaPrestacao || '')}</div>`
-                : '<div class="text-xs text-orange-600 font-bold">○ Pagamento pendente</div>';
-            const observacao = prestacao
+                : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200');
+            const status = resumoPagamento.quitado
+                ? `<div class="text-xs text-green-700 font-bold">✅ Quitado · Pago ${formatarMoeda(resumoPagamento.totalPago)}</div>`
+                : (resumoPagamento.parcial
+                    ? `<div class="text-xs text-yellow-800 font-bold">🟡 Pagamento parcial · Pago ${formatarMoeda(resumoPagamento.totalPago)} · Falta ${formatarMoeda(resumoPagamento.saldoRestante)}</div>`
+                    : '<div class="text-xs text-orange-600 font-bold">○ Pagamento pendente</div>');
+            const observacao = prestacao && tipo !== 'catamara'
                 ? `<div class="text-xs text-gray-600 mt-1">💬 ${escaparHTML(prestacao.observacao || 'Pagamento antigo sem observação')}</div>`
                 : '';
-            const botao = valorNumerico > 0
-                ? `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${prestacao ? 'bg-blue-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
-                        ${prestacao ? '✏️ Editar pagamento' : '✅ Marcar como pago'}
-                   </button>`
+            const listaParcelas = tipo === 'catamara' && resumoPagamento.pagamentos.length > 0
+                ? `<div class="mt-2 space-y-1">
+                    ${resumoPagamento.pagamentos.map(pagamento => {
+                        const idArgumento = escaparHTML(JSON.stringify(pagamento.id));
+                        return `
+                            <div class="bg-white bg-opacity-70 rounded p-2 text-xs">
+                                <div class="flex justify-between items-start gap-2">
+                                    <div>
+                                        <div class="font-semibold text-gray-700">${formatarDataHistorico(pagamento.dataPrestacao)} ${escaparHTML(pagamento.horaPrestacao || '')}</div>
+                                        <div class="text-gray-600">💬 ${escaparHTML(pagamento.observacao || 'Pagamento antigo sem observação')}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-green-700">${formatarMoeda(pagamento.valor)}</div>
+                                        <button type="button" onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico}, ${idArgumento})" class="text-blue-700 font-semibold mt-1">✏️ Editar</button>
+                                    </div>
+                                </div>
+                            </div>`;
+                    }).join('')}
+                   </div>`
+                : '';
+            let botao = valorNumerico > 0 && resumoPagamento.quitado
+                ? '<div class="text-xs text-green-700 font-semibold mt-2">Nenhum saldo pendente nesta data.</div>'
                 : '<div class="text-xs text-gray-400 mt-2">Sem valor a pagar nesta data.</div>';
+
+            if (valorNumerico > 0 && tipo === 'catamara' && resumoPagamento.saldoRestante >= 0.01) {
+                botao = `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${resumoPagamento.parcial ? 'bg-yellow-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
+                            ${resumoPagamento.parcial ? '➕ Registrar outra parte' : '💰 Pagar total ou parcial'}
+                         </button>`;
+            } else if (valorNumerico > 0 && tipo !== 'catamara') {
+                botao = `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${prestacao ? 'bg-blue-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
+                            ${prestacao ? '✏️ Editar pagamento' : '✅ Marcar como pago'}
+                         </button>`;
+            }
 
             return `
                 <div class="border rounded-lg p-3 ${classeCartao}">
@@ -1286,6 +1454,7 @@
                         <div class="font-bold text-green-700">${formatarMoeda(valorNumerico)}</div>
                     </div>
                     <div class="mt-2">${status}${observacao}</div>
+                    ${listaParcelas}
                     ${botao}
                 </div>`;
         }
@@ -1416,7 +1585,7 @@
                     const diasDoCatamara = Object.entries(dadosCat.dias)
                         .sort(([dataA], [dataB]) => dataB.localeCompare(dataA));
                     const saldoDevedor = diasDoCatamara.reduce((saldo, [data, dia]) =>
-                        obterPrestacaoDiaria('catamara', cat, data) ? saldo : saldo + dia.valor,
+                        saldo + obterResumoPagamentoDiario('catamara', cat, data, dia.valor).saldoRestante,
                     0);
                     const linhasDiarias = diasDoCatamara
                         .map(([data, dia]) => renderizarLinhaPagamentoDiario(
@@ -1574,6 +1743,16 @@
             return `${prestacao.dataPrestacao || ''} ${prestacao.horaPrestacao || ''}`;
         }
 
+        function detalheParcelaPrestacao(prestacao) {
+            const valorTotal = Number(prestacao.valorTotalMovimento) || 0;
+            if (prestacao.tipo !== 'catamara' || valorTotal <= 0) return '';
+
+            const parcial = prestacao.pagamentoParcial === true || prestacao.statusPagamento === 'parcial';
+            return `<div class="text-xs ${parcial ? 'text-yellow-700' : 'text-green-700'} font-semibold">
+                ${parcial ? '🟡 Pagamento parcial' : '✅ Quitação'} · Total da data ${formatarMoeda(valorTotal)}
+            </div>`;
+        }
+
         // Atualizar Histórico de Pagamentos
         function atualizarHistorico() {
             // Último pagamento por catamarã
@@ -1596,6 +1775,7 @@
                             <span class="text-green-700">${formatarMoeda(p.valor)}</span>
                         </div>
                         <div class="text-xs text-gray-600">${descricaoMovimentoPrestacao(p)}</div>
+                        ${detalheParcelaPrestacao(p)}
                         <div class="text-xs text-gray-500">Pago em ${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</div>
                         ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
                     </div>
@@ -1644,6 +1824,7 @@
                             <span class="text-gray-500 text-xs">${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</span>
                         </div>
                         <div class="text-xs text-gray-600 mb-1">${descricaoMovimentoPrestacao(p)}</div>
+                        ${detalheParcelaPrestacao(p)}
                         <div class="text-xs font-bold ${p.tipo === 'catamara' ? 'text-green-700' : 'text-purple-700'}">
                             ${formatarMoeda(p.valor)}
                         </div>
