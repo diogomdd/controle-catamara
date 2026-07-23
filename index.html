@@ -226,12 +226,12 @@
                 <h3 class="font-bold text-blue-700 mb-2">📅 Período do Relatório</h3>
                 <div class="grid grid-cols-2 gap-2 mb-2">
                     <div>
-                        <label class="block text-xs font-semibold mb-1">De:</label>
-                        <input type="date" id="dataInicio" class="w-full border-2 border-blue-500 rounded p-2">
+                        <label for="dataInicio" class="block text-xs font-semibold mb-1">De:</label>
+                        <input type="date" id="dataInicio" aria-label="Início do período da prestação" class="w-full border-2 border-blue-500 rounded p-2">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold mb-1">Até:</label>
-                        <input type="date" id="dataFim" class="w-full border-2 border-blue-500 rounded p-2">
+                        <label for="dataFim" class="block text-xs font-semibold mb-1">Até:</label>
+                        <input type="date" id="dataFim" aria-label="Fim do período da prestação" class="w-full border-2 border-blue-500 rounded p-2">
                     </div>
                 </div>
                 <div class="flex gap-2 mb-3">
@@ -264,6 +264,7 @@
             <!-- SEÇÃO EMBARQUE -->
             <div id="secao-embarque" class="card p-4 mb-4">
                 <h3 class="font-bold text-green-700 mb-2">💰 Repasse aos Donos (Embarque)</h3>
+                <p class="text-xs text-gray-500 mb-3">Cada linha representa uma data. Marque o pagamento e informe como ele foi feito.</p>
                 <div id="rel-catamaras"></div>
             </div>
 
@@ -271,6 +272,7 @@
             <div id="secao-comissao" class="card p-4 mb-4">
                 <h3 class="font-bold text-purple-700 mb-2">📋 Comissão por Agência (Almoço)</h3>
                 <p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por pessoa que almoçou)</p>
+                <p class="text-xs text-gray-500 mb-3">Os pagamentos também podem ser registrados separadamente por data.</p>
                 <div id="rel-agencias"></div>
             </div>
 
@@ -299,33 +301,84 @@
             </button>
         </div>
 
-        <!-- ABA 4: HISTÓRICO DE PRESTAÇÕES -->
-        <div id="tab-historico" class="tab-content hidden">
-            <h2 class="font-bold text-lg mb-3 text-blue-700">📜 Histórico de Prestações</h2>
-            
-            <div class="card p-4 mb-4">
-                <h3 class="font-bold text-green-700 mb-3">🚤 Última Prestação com Catamarãs</h3>
-                <div id="historico-catamaras" class="space-y-2">
-                    <p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>
+        <!-- ABA 4: JACILENE -->
+        <div id="tab-jacilene" class="tab-content hidden">
+            <h2 class="font-bold text-lg mb-3 text-pink-700">👩 Jacilene</h2>
+
+            <div class="card p-4 mb-4 border-2 border-pink-400">
+                <h3 class="font-bold text-pink-700 mb-1">Prestação exclusiva do Velho Bill</h3>
+                <p class="text-xs text-gray-500 mb-3">O cálculo utiliza somente adultos, com NET de R$ 60,00 e limite máximo de 18 PAX.</p>
+
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                        <label for="jacileneDataInicio" class="block text-xs font-semibold mb-1">De:</label>
+                        <input type="date" id="jacileneDataInicio" class="w-full border-2 border-pink-400 rounded p-2">
+                    </div>
+                    <div>
+                        <label for="jacileneDataFim" class="block text-xs font-semibold mb-1">Até:</label>
+                        <input type="date" id="jacileneDataFim" class="w-full border-2 border-pink-400 rounded p-2">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="atualizarJacilene()" class="bg-pink-600 text-white font-bold py-2 rounded-lg text-xs">🔍 Gerar</button>
+                    <button onclick="periodoHojeJacilene()" class="bg-gray-500 text-white font-bold py-2 rounded-lg text-xs">Hoje</button>
+                    <button onclick="periodoMesJacilene()" class="bg-gray-500 text-white font-bold py-2 rounded-lg text-xs">Mês</button>
                 </div>
             </div>
 
             <div class="card p-4 mb-4">
-                <h3 class="font-bold text-purple-700 mb-3"> Última Prestação com Agências</h3>
-                <div id="historico-agencias" class="space-y-2">
-                    <p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>
+                <div class="flex justify-between items-start gap-2 mb-3">
+                    <div>
+                        <h3 class="font-bold text-pink-700">Valores por dia</h3>
+                        <p class="text-xs text-gray-500">Toque em “Marcar como pago” na data correspondente.</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-500">Total calculado</div>
+                        <div id="jacilene-total" class="font-bold text-green-700">R$ 0,00</div>
+                    </div>
+                </div>
+                <div id="jacilene-resumo" class="text-xs text-gray-500 mb-3"></div>
+                <div id="jacilene-lista" class="space-y-2">
+                    <p class="text-gray-500 text-sm text-center">Nenhum embarque do Velho Bill no período.</p>
                 </div>
             </div>
 
             <div class="card p-4">
-                <h3 class="font-bold text-blue-700 mb-3"> Todas as Prestações</h3>
-                <div id="lista-prestacoes" class="space-y-2">
-                    <p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>
+                <h3 class="font-bold text-pink-700 mb-3">Histórico de pagamentos da Jacilene</h3>
+                <div id="historico-jacilene" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
                 </div>
             </div>
         </div>
 
-        <!-- ABA 5: CONFIG -->
+        <!-- ABA 5: HISTÓRICO DE PAGAMENTOS -->
+        <div id="tab-historico" class="tab-content hidden">
+            <h2 class="font-bold text-lg mb-3 text-blue-700">📜 Histórico de Pagamentos</h2>
+            
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-green-700 mb-3">🚤 Último Pagamento aos Catamarãs</h3>
+                <div id="historico-catamaras" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
+                </div>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <h3 class="font-bold text-purple-700 mb-3">Último Pagamento às Agências</h3>
+                <div id="historico-agencias" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
+                </div>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="font-bold text-blue-700 mb-3">Todos os Pagamentos</h3>
+                <div id="lista-prestacoes" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 6: CONFIG -->
         <div id="tab-config" class="tab-content hidden">
             <h2 class="font-bold text-lg mb-3 text-blue-700">⚙️ Configurações</h2>
             
@@ -364,21 +417,52 @@
         </div>
     </main>
 
+    <div id="modal-pagamento" class="hidden fixed inset-0 z-50 bg-black bg-opacity-50 p-4 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+            <div class="flex justify-between items-start gap-3 mb-4">
+                <div>
+                    <h2 class="font-bold text-lg text-blue-800">Registrar pagamento</h2>
+                    <p class="text-xs text-gray-500">Marque somente o valor referente a esta data.</p>
+                </div>
+                <button type="button" onclick="fecharModalPagamento()" class="text-gray-500 text-2xl leading-none" aria-label="Fechar">×</button>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm">
+                <div class="font-bold text-blue-800" id="pagamento-nome"></div>
+                <div class="flex justify-between mt-1">
+                    <span id="pagamento-data"></span>
+                    <span class="font-bold text-green-700" id="pagamento-valor"></span>
+                </div>
+            </div>
+
+            <label for="pagamento-observacao" class="block text-sm font-semibold mb-1">Como foi pago / observação:</label>
+            <textarea id="pagamento-observacao" rows="3" maxlength="300" class="w-full border-2 border-blue-500 rounded p-2 mb-4" placeholder="Ex: Pix, dinheiro, transferência, pago para João..."></textarea>
+
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" onclick="fecharModalPagamento()" class="bg-gray-500 text-white font-bold py-2 rounded-lg">Cancelar</button>
+                <button type="button" id="confirmar-pagamento" onclick="salvarPagamentoDiario()" class="bg-green-600 text-white font-bold py-2 rounded-lg">✅ Confirmar pago</button>
+            </div>
+        </div>
+    </div>
+
     <nav class="fixed bottom-0 w-full bg-white border-t flex justify-around py-2 shadow-lg">
-        <button onclick="abrirTab('guias')" class="tab-btn flex flex-col items-center text-xs p-2 tab-active" id="btn-guias">
-            <span class="text-2xl">📋</span> Guias
+        <button onclick="abrirTab('guias')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0 tab-active" id="btn-guias">
+            <span class="text-xl">📋</span> Guias
         </button>
-        <button onclick="abrirTab('barcos')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-barcos">
-            <span class="text-2xl">🚤</span> Barcos
+        <button onclick="abrirTab('barcos')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-barcos">
+            <span class="text-xl">🚤</span> Barcos
         </button>
-        <button onclick="abrirTab('contas')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-contas">
-            <span class="text-2xl">📊</span> Contas
+        <button onclick="abrirTab('contas')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-contas">
+            <span class="text-xl">📊</span> Contas
         </button>
-        <button onclick="abrirTab('historico')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-historico">
-            <span class="text-2xl">📜</span> Histórico
+        <button onclick="abrirTab('jacilene')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-jacilene">
+            <span class="text-xl">👩</span> Jacilene
         </button>
-        <button onclick="abrirTab('config')" class="tab-btn flex flex-col items-center text-xs p-2" id="btn-config">
-            <span class="text-2xl">️</span> Config
+        <button onclick="abrirTab('historico')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-historico">
+            <span class="text-xl">📜</span> Histórico
+        </button>
+        <button onclick="abrirTab('config')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-config">
+            <span class="text-xl">️</span> Config
         </button>
     </nav>
 
@@ -402,6 +486,15 @@
         let config = { adulto: 60, crianca: 35, comissao: 5 };
         let dataGlobal = dataLocalHoje();
         let filtroTipoRelatorio = 'ambos';
+        let pagamentoEmEdicao = null;
+        const tabelaJacilene = {
+            13: 126.50,
+            14: 160.50,
+            15: 160.50,
+            16: 194.50,
+            17: 194.50,
+            18: 228.50
+        };
 
         // FUNÇÕES AUXILIARES
         function dataLocalHoje() {
@@ -410,6 +503,10 @@
             const mes = String(hoje.getMonth() + 1).padStart(2, '0');
             const dia = String(hoje.getDate()).padStart(2, '0');
             return `${ano}-${mes}-${dia}`;
+        }
+
+        function primeiroDiaMesAtual() {
+            return `${dataLocalHoje().slice(0, 8)}01`;
         }
 
         function obterNumero(id) {
@@ -444,7 +541,9 @@
                 .replace(/[^a-z0-9]+/g, ' ')
                 .trim();
             const apelidos = {
-                'verlho bill': 'velho bill'
+                'verlho bill': 'velho bill',
+                'ranildo': 'ranildo mundinho',
+                'mundinho': 'ranildo mundinho'
             };
             return apelidos[chaveBase] || chaveBase;
         }
@@ -463,7 +562,8 @@
             const chave = chaveEmbarcacao(nome);
             const nomesConhecidos = {
                 'velho bill': 'Velho Bill',
-                'ze maria': 'Zé Maria'
+                'ze maria': 'Zé Maria',
+                'ranildo mundinho': 'Ranildo / Mundinho'
             };
             if (nomesConhecidos[chave]) return nomesConhecidos[chave];
 
@@ -728,6 +828,148 @@
             atualizarTela();
         }
 
+        function calcularValorJacilene(adultos) {
+            const totalAdultos = Number(adultos) || 0;
+            if (totalAdultos < 13) {
+                return { calculavel: false, paxAplicado: totalAdultos, valor: 0 };
+            }
+
+            const paxAplicado = Math.min(totalAdultos, 18);
+            return {
+                calculavel: true,
+                paxAplicado,
+                valor: tabelaJacilene[paxAplicado]
+            };
+        }
+
+        function periodoHojeJacilene() {
+            const hoje = dataLocalHoje();
+            document.getElementById('jacileneDataInicio').value = hoje;
+            document.getElementById('jacileneDataFim').value = hoje;
+            atualizarJacilene();
+        }
+
+        function periodoMesJacilene() {
+            document.getElementById('jacileneDataInicio').value = primeiroDiaMesAtual();
+            document.getElementById('jacileneDataFim').value = dataLocalHoje();
+            atualizarJacilene();
+        }
+
+        function atualizarHistoricoJacilene() {
+            const container = document.getElementById('historico-jacilene');
+            if (!container) return;
+
+            const pagamentos = prestacoes
+                .filter(p => p.tipo === 'jacilene')
+                .sort((a, b) => momentoPrestacao(b).localeCompare(momentoPrestacao(a)));
+
+            if (pagamentos.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>';
+                return;
+            }
+
+            container.innerHTML = pagamentos.map(p => `
+                <div class="bg-pink-50 border-l-4 border-pink-500 rounded p-3">
+                    <div class="flex justify-between font-bold">
+                        <span>${descricaoMovimentoPrestacao(p)}</span>
+                        <span class="text-green-700">${formatarMoeda(p.valor)}</span>
+                    </div>
+                    <div class="text-xs text-gray-500">Pago em ${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</div>
+                    ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function atualizarJacilene() {
+            const dataInicio = document.getElementById('jacileneDataInicio').value;
+            const dataFim = document.getElementById('jacileneDataFim').value;
+            const lista = document.getElementById('jacilene-lista');
+            const resumo = document.getElementById('jacilene-resumo');
+            const totalElemento = document.getElementById('jacilene-total');
+
+            if (!dataInicio || !dataFim) {
+                lista.innerHTML = '<p class="text-gray-500 text-sm text-center">Selecione o período.</p>';
+                resumo.innerText = '';
+                totalElemento.innerText = formatarMoeda(0);
+                atualizarHistoricoJacilene();
+                return;
+            }
+
+            if (dataInicio > dataFim) {
+                lista.innerHTML = '<p class="text-red-600 text-sm text-center">A data inicial não pode ser posterior à data final.</p>';
+                resumo.innerText = '';
+                totalElemento.innerText = formatarMoeda(0);
+                atualizarHistoricoJacilene();
+                return;
+            }
+
+            const porData = registrosEmbarcacoes
+                .filter(registro =>
+                    mesmaEmbarcacao(registro.catamaran, 'Velho Bill') &&
+                    registro.data >= dataInicio &&
+                    registro.data <= dataFim
+                )
+                .reduce((dias, registro) => {
+                    if (!dias[registro.data]) dias[registro.data] = { adultos: 0, lancamentos: 0 };
+                    dias[registro.data].adultos += Number(registro.adultos) || 0;
+                    dias[registro.data].lancamentos += 1;
+                    return dias;
+                }, {});
+
+            const dias = Object.entries(porData).sort(([dataA], [dataB]) => dataA.localeCompare(dataB));
+            if (dias.length === 0) {
+                lista.innerHTML = '<p class="text-gray-500 text-sm text-center">Nenhum embarque do Velho Bill no período.</p>';
+                resumo.innerText = `Período: ${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}`;
+                totalElemento.innerText = formatarMoeda(0);
+                atualizarHistoricoJacilene();
+                return;
+            }
+
+            let total = 0;
+            let diasCalculados = 0;
+            let diasSemRegra = 0;
+
+            lista.innerHTML = dias.map(([data, dadosDia]) => {
+                const calculo = calcularValorJacilene(dadosDia.adultos);
+                if (!calculo.calculavel) {
+                    diasSemRegra += 1;
+                    return `
+                        <div class="bg-orange-50 border border-orange-300 rounded-lg p-3">
+                            <div class="flex justify-between items-start gap-2">
+                                <div>
+                                    <div class="font-bold">${formatarDataRelatorio(data)}</div>
+                                    <div class="text-xs text-gray-600">${dadosDia.adultos} adultos</div>
+                                </div>
+                                <div class="text-right text-xs font-bold text-orange-700">Valor não definido</div>
+                            </div>
+                            <div class="text-xs text-orange-700 mt-2">A tabela recebida começa em 13 PAX. Este dia não pode ser marcado como pago.</div>
+                        </div>`;
+                }
+
+                diasCalculados += 1;
+                total += calculo.valor;
+                const limite = dadosDia.adultos > 18
+                    ? ` · cálculo limitado a 18 PAX`
+                    : ` · ${calculo.paxAplicado} PAX`;
+                const lancamentos = dadosDia.lancamentos > 1
+                    ? ` · ${dadosDia.lancamentos} lançamentos somados`
+                    : '';
+
+                return renderizarLinhaPagamentoDiario(
+                    'jacilene',
+                    'Jacilene',
+                    data,
+                    calculo.valor,
+                    `${dadosDia.adultos} adultos${limite}${lancamentos}`
+                );
+            }).join('');
+
+            totalElemento.innerText = formatarMoeda(total);
+            resumo.innerText = `${diasCalculados} dia${diasCalculados === 1 ? '' : 's'} calculado${diasCalculados === 1 ? '' : 's'}` +
+                (diasSemRegra ? ` · ${diasSemRegra} dia${diasSemRegra === 1 ? '' : 's'} abaixo de 13 adultos` : '');
+            atualizarHistoricoJacilene();
+        }
+
         function setFiltroTipo(tipo) {
             filtroTipoRelatorio = tipo;
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
@@ -781,6 +1023,8 @@
         document.getElementById('dataGlobal').value = dataLocalHoje();
         document.getElementById('dataInicio').value = dataLocalHoje();
         document.getElementById('dataFim').value = dataLocalHoje();
+        document.getElementById('jacileneDataInicio').value = primeiroDiaMesAtual();
+        document.getElementById('jacileneDataFim').value = dataLocalHoje();
 
         // CARREGAR DADOS DO FIREBASE
         function carregarDados() {
@@ -824,7 +1068,7 @@
                         snapshot.forEach((doc) => {
                             prestacoes.push({ id: doc.id, ...doc.data() });
                         });
-                        atualizarHistorico();
+                        atualizarTela();
                     } catch (err) {
                         console.error('Erro ao processar prestações:', err);
                     }
@@ -925,25 +1169,125 @@
                 .catch((error) => alert('Erro: ' + error.message));
         }
 
-        // NOVO: Marcar Prestação de Contas
-        function marcarPrestacao(tipo, nome, periodoInicio, periodoFim, valor) {
+        function mesmaPartePrestacao(tipo, nomePrestacao, nomeComparado) {
+            return tipo === 'catamara'
+                ? mesmaEmbarcacao(nomePrestacao, nomeComparado)
+                : nomePrestacao === nomeComparado;
+        }
+
+        function obterPrestacaoDiaria(tipo, nome, dataMovimento) {
+            return prestacoes
+                .filter(p =>
+                    p.tipo === tipo &&
+                    mesmaPartePrestacao(tipo, p.nome, nome) &&
+                    (
+                        p.dataMovimento === dataMovimento ||
+                        (!p.dataMovimento && p.periodoInicio === dataMovimento && p.periodoFim === dataMovimento)
+                    )
+                )
+                .sort((a, b) => {
+                    const momentoA = `${a.dataPrestacao || ''} ${a.horaPrestacao || ''}`;
+                    const momentoB = `${b.dataPrestacao || ''} ${b.horaPrestacao || ''}`;
+                    return momentoB.localeCompare(momentoA);
+                })[0];
+        }
+
+        function abrirPagamentoDiario(tipo, nome, dataMovimento, valor) {
             const nomePrestacao = tipo === 'catamara' ? nomeCanonicoEmbarcacao(nome) : nome;
-            const prestacao = {
-                tipo, // 'catamara' ou 'agencia'
+            const existente = obterPrestacaoDiaria(tipo, nomePrestacao, dataMovimento);
+            pagamentoEmEdicao = {
+                tipo,
                 nome: nomePrestacao,
-                periodoInicio,
-                periodoFim,
-                valor,
+                dataMovimento,
+                valor: Number(valor) || 0,
+                prestacaoId: existente?.id || null
+            };
+
+            document.getElementById('pagamento-nome').innerText = nomePrestacao;
+            document.getElementById('pagamento-data').innerText = formatarDataRelatorio(dataMovimento);
+            document.getElementById('pagamento-valor').innerText = formatarMoeda(pagamentoEmEdicao.valor);
+            document.getElementById('pagamento-observacao').value = existente?.observacao || '';
+            document.getElementById('confirmar-pagamento').innerText = existente ? '💾 Atualizar pagamento' : '✅ Confirmar pago';
+            document.getElementById('modal-pagamento').classList.remove('hidden');
+            setTimeout(() => document.getElementById('pagamento-observacao').focus(), 50);
+        }
+
+        function fecharModalPagamento() {
+            pagamentoEmEdicao = null;
+            document.getElementById('pagamento-observacao').value = '';
+            document.getElementById('modal-pagamento').classList.add('hidden');
+        }
+
+        function salvarPagamentoDiario() {
+            if (!pagamentoEmEdicao) return;
+
+            const observacao = document.getElementById('pagamento-observacao').value.trim();
+            if (!observacao) return alert('Informe como o pagamento foi feito ou escreva uma observação.');
+
+            const botao = document.getElementById('confirmar-pagamento');
+            botao.disabled = true;
+            botao.innerText = 'Salvando...';
+
+            const prestacao = {
+                tipo: pagamentoEmEdicao.tipo,
+                nome: pagamentoEmEdicao.nome,
+                dataMovimento: pagamentoEmEdicao.dataMovimento,
+                periodoInicio: pagamentoEmEdicao.dataMovimento,
+                periodoFim: pagamentoEmEdicao.dataMovimento,
+                valor: pagamentoEmEdicao.valor,
+                observacao,
                 dataPrestacao: dataLocalHoje(),
                 horaPrestacao: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
 
-            db.collection('prestacoes').add(prestacao)
+            const referencia = pagamentoEmEdicao.prestacaoId
+                ? db.collection('prestacoes').doc(pagamentoEmEdicao.prestacaoId)
+                : db.collection('prestacoes').doc();
+
+            referencia.set(prestacao, { merge: true })
                 .then(() => {
-                    alert(`✅ Prestação registrada!\n\n${nomePrestacao}\nPeríodo: ${periodoInicio} a ${periodoFim}\nValor: ${formatarMoeda(valor)}\nData: ${prestacao.dataPrestacao} ${prestacao.horaPrestacao}`);
+                    fecharModalPagamento();
+                    alert(`✅ Pagamento registrado!\n\n${prestacao.nome}\nData do movimento: ${formatarDataRelatorio(prestacao.dataMovimento)}\nValor: ${formatarMoeda(prestacao.valor)}\nObservação: ${observacao}`);
                 })
-                .catch((error) => alert('Erro: ' + error.message));
+                .catch((error) => alert('Erro: ' + error.message))
+                .finally(() => {
+                    botao.disabled = false;
+                    botao.innerText = '✅ Confirmar pago';
+                });
+        }
+
+        function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes) {
+            const prestacao = obterPrestacaoDiaria(tipo, nome, dataMovimento);
+            const nomeArgumento = escaparHTML(JSON.stringify(nome));
+            const valorNumerico = Number(valor) || 0;
+            const classeCartao = prestacao
+                ? 'bg-green-50 border-green-300'
+                : 'bg-gray-50 border-gray-200';
+            const status = prestacao
+                ? `<div class="text-xs text-green-700 font-bold">✅ Pago em ${formatarDataHistorico(prestacao.dataPrestacao)} ${escaparHTML(prestacao.horaPrestacao || '')}</div>`
+                : '<div class="text-xs text-orange-600 font-bold">○ Pagamento pendente</div>';
+            const observacao = prestacao
+                ? `<div class="text-xs text-gray-600 mt-1">💬 ${escaparHTML(prestacao.observacao || 'Pagamento antigo sem observação')}</div>`
+                : '';
+            const botao = valorNumerico > 0
+                ? `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${prestacao ? 'bg-blue-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
+                        ${prestacao ? '✏️ Editar pagamento' : '✅ Marcar como pago'}
+                   </button>`
+                : '<div class="text-xs text-gray-400 mt-2">Sem valor a pagar nesta data.</div>';
+
+            return `
+                <div class="border rounded-lg p-3 ${classeCartao}">
+                    <div class="flex justify-between items-start gap-2">
+                        <div>
+                            <div class="font-bold text-sm">${formatarDataRelatorio(dataMovimento)}</div>
+                            <div class="text-xs text-gray-500">${detalhes}</div>
+                        </div>
+                        <div class="font-bold text-green-700">${formatarMoeda(valorNumerico)}</div>
+                    </div>
+                    <div class="mt-2">${status}${observacao}</div>
+                    ${botao}
+                </div>`;
         }
 
         function excluirGuia(id) {
@@ -1046,8 +1390,18 @@
             if (filtroTipoRelatorio !== 'comissao') {
                 contasBarcos.forEach(e => {
                     const catamaran = nomeCanonicoEmbarcacao(e.catamaran);
-                    if (!relCat[catamaran]) relCat[catamaran] = 0;
-                    relCat[catamaran] += Number(e.valorRepasse) || 0;
+                    if (!relCat[catamaran]) relCat[catamaran] = { valor: 0, pax: 0, dias: {} };
+                    if (!relCat[catamaran].dias[e.data]) {
+                        relCat[catamaran].dias[e.data] = { valor: 0, pax: 0, lancamentos: 0 };
+                    }
+
+                    const valor = Number(e.valorRepasse) || 0;
+                    const pax = Number(e.totalPax) || 0;
+                    relCat[catamaran].valor += valor;
+                    relCat[catamaran].pax += pax;
+                    relCat[catamaran].dias[e.data].valor += valor;
+                    relCat[catamaran].dias[e.data].pax += pax;
+                    relCat[catamaran].dias[e.data].lancamentos += 1;
                 });
             }
             const divCat = document.getElementById('rel-catamaras');
@@ -1056,29 +1410,40 @@
             } else if (Object.keys(relCat).length === 0) {
                 divCat.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
             } else {
-                divCat.innerHTML = Object.entries(relCat).map(([cat, val]) => {
-                    // Encontrar última prestação deste catamarã
-                    const ultimaPrestacao = prestacoes
-                        .filter(p => p.tipo === 'catamara' && mesmaEmbarcacao(p.nome, cat))
-                        .sort((a, b) => b.dataPrestacao.localeCompare(a.dataPrestacao))[0];
-                    
-                    const infoPrestacao = ultimaPrestacao 
-                        ? `<div class="text-xs text-green-600 mt-1">✅ Última prestação: ${ultimaPrestacao.dataPrestacao} ${ultimaPrestacao.horaPrestacao}</div>`
-                        : '<div class="text-xs text-gray-400 mt-1">⚠️ Nunca prestado</div>';
-                    
+                divCat.innerHTML = Object.entries(relCat)
+                    .sort(([catA], [catB]) => catA.localeCompare(catB, 'pt-BR'))
+                    .map(([cat, dadosCat]) => {
+                    const linhasDiarias = Object.entries(dadosCat.dias)
+                        .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+                        .map(([data, dia]) => renderizarLinhaPagamentoDiario(
+                            'catamara',
+                            cat,
+                            data,
+                            dia.valor,
+                            `${dia.pax} passageiros · ${dia.lancamentos} lançamento${dia.lancamentos === 1 ? '' : 's'}`
+                        ))
+                        .join('');
+
                     return `
-                        <div class="flex justify-between border-b py-2">
-                            <div class="flex-1">
-                                <div class="flex justify-between">
-                                    <span>${escaparHTML(cat)}</span>
-                                    <span class="font-bold text-green-700">${formatarMoeda(val)}</span>
+                        <details class="group border-2 border-blue-200 rounded-xl p-3 mb-4 bg-white">
+                            <summary class="cursor-pointer list-none">
+                                <div class="flex justify-between items-start gap-2">
+                                    <div>
+                                        <div class="font-bold text-blue-800">🚤 ${escaparHTML(cat)}</div>
+                                        <div class="text-xs text-gray-500">${dadosCat.pax} passageiros no período</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-xs text-gray-500">Total do período</div>
+                                        <div class="font-bold text-green-700">${formatarMoeda(dadosCat.valor)}</div>
+                                    </div>
                                 </div>
-                                ${infoPrestacao}
-                                <button onclick="marcarPrestacao('catamara', '${escaparHTML(cat)}', '${dataInicio}', '${dataFim}', ${val})" class="w-full mt-2 btn-mark text-xs py-1 rounded">
-                                    ✅ Marcar como Prestado
-                                </button>
-                            </div>
-                        </div>`;
+                                <div class="text-xs text-blue-600 font-semibold mt-2">
+                                    <span class="group-open:hidden">▼ Ver datas e marcar pagamentos</span>
+                                    <span class="hidden group-open:inline">▲ Ocultar datas</span>
+                                </div>
+                            </summary>
+                            <div class="space-y-2 mt-3 pt-3 border-t border-blue-100">${linhasDiarias}</div>
+                        </details>`;
                 }).join('');
             }
 
@@ -1086,10 +1451,20 @@
             const relAge = {};
             if (filtroTipoRelatorio !== 'embarque') {
                 contasGuias.forEach(e => {
-                    if (!relAge[e.agencia]) relAge[e.agencia] = { pax: 0, comissao: 0, almocaram: 0 };
-                    relAge[e.agencia].pax += e.totalPax;
-                    relAge[e.agencia].comissao += e.comissao;
-                    relAge[e.agencia].almocaram += (e.almocaram || 0);
+                    if (!relAge[e.agencia]) relAge[e.agencia] = { pax: 0, comissao: 0, almocaram: 0, dias: {} };
+                    if (!relAge[e.agencia].dias[e.data]) {
+                        relAge[e.agencia].dias[e.data] = { pax: 0, comissao: 0, almocaram: 0 };
+                    }
+
+                    const pax = Number(e.totalPax) || 0;
+                    const comissao = Number(e.comissao) || 0;
+                    const almocaram = Number(e.almocaram) || 0;
+                    relAge[e.agencia].pax += pax;
+                    relAge[e.agencia].comissao += comissao;
+                    relAge[e.agencia].almocaram += almocaram;
+                    relAge[e.agencia].dias[e.data].pax += pax;
+                    relAge[e.agencia].dias[e.data].comissao += comissao;
+                    relAge[e.agencia].dias[e.data].almocaram += almocaram;
                 });
             }
             const divAge = document.getElementById('rel-agencias');
@@ -1098,33 +1473,35 @@
             } else if (Object.keys(relAge).length === 0) {
                 divAge.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
             } else {
-                divAge.innerHTML = Object.entries(relAge).map(([age, d]) => {
-                    const ultimaPrestacao = prestacoes
-                        .filter(p => p.tipo === 'agencia' && p.nome === age)
-                        .sort((a, b) => b.dataPrestacao.localeCompare(a.dataPrestacao))[0];
-                    
-                    const infoPrestacao = ultimaPrestacao 
-                        ? `<div class="text-xs text-green-600 mt-1">✅ Última prestação: ${ultimaPrestacao.dataPrestacao} ${ultimaPrestacao.horaPrestacao}</div>`
-                        : '<div class="text-xs text-gray-400 mt-1">⚠️ Nunca prestado</div>';
-                    
+                divAge.innerHTML = Object.entries(relAge)
+                    .sort(([ageA], [ageB]) => ageA.localeCompare(ageB, 'pt-BR'))
+                    .map(([age, d]) => {
                     const textoWhats = `*Relatório ${age}*\nPeríodo: ${dataInicio} a ${dataFim}\nEmbarque: ${d.pax}\nAlmoço: ${d.almocaram}\nComissão: ${formatarMoeda(d.comissao)}`;
-                    
+                    const linhasDiarias = Object.entries(d.dias)
+                        .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+                        .map(([data, dia]) => renderizarLinhaPagamentoDiario(
+                            'agencia',
+                            age,
+                            data,
+                            dia.comissao,
+                            `🚤 ${dia.pax} passageiros · 🍽️ ${dia.almocaram} almoços`
+                        ))
+                        .join('');
+
                     return `
-                        <div class="border-b py-2">
-                            <div class="flex justify-between font-bold">
-                                <span>${escaparHTML(age)}</span>
-                                <span class="text-red-600">${formatarMoeda(d.comissao)}</span>
+                        <div class="border-2 border-purple-200 rounded-xl p-3 mb-4">
+                            <div class="flex justify-between items-start gap-2 mb-2">
+                                <div>
+                                    <div class="font-bold text-purple-800">${escaparHTML(age)}</div>
+                                    <div class="text-xs text-gray-500">🚤 ${d.pax} passageiros · 🍽️ ${d.almocaram} almoços</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-xs text-gray-500">Total do período</div>
+                                    <div class="font-bold text-purple-700">${formatarMoeda(d.comissao)}</div>
+                                </div>
                             </div>
-                            <div class="text-xs text-gray-500 mb-1">🚤 ${d.pax} | 🍽️ ${d.almocaram}</div>
-                            ${infoPrestacao}
-                            <div class="flex gap-2 mt-2">
-                                <a href="https://wa.me/?text=${encodeURIComponent(textoWhats)}" target="_blank" class="flex-1 bg-green-500 text-white text-xs py-1 rounded text-center">
-                                     WhatsApp
-                                </a>
-                                <button onclick="marcarPrestacao('agencia', '${escaparHTML(age)}', '${dataInicio}', '${dataFim}', ${d.comissao})" class="flex-1 btn-mark text-xs py-1 rounded">
-                                    ✅ Prestado
-                                </button>
-                            </div>
+                            <a href="https://wa.me/?text=${encodeURIComponent(textoWhats)}" target="_blank" class="block w-full bg-green-500 text-white text-xs font-bold py-2 rounded text-center mb-3">WhatsApp</a>
+                            <div class="space-y-2">${linhasDiarias}</div>
                         </div>`;
                 }).join('');
             }
@@ -1164,24 +1541,45 @@
             document.getElementById('barcos-list').innerHTML = barcos.map(b => `<option value="${escaparHTML(b)}">`).join('');
             atualizarOpcoesRelatorioBarco();
 
-            // Atualizar histórico
+            // Atualizar prestação da Jacilene e histórico geral
+            atualizarJacilene();
             atualizarHistorico();
         }
 
-        // NOVO: Atualizar Histórico de Prestações
+        function formatarDataHistorico(data) {
+            return /^\d{4}-\d{2}-\d{2}$/.test(String(data || ''))
+                ? formatarDataRelatorio(data)
+                : (data || '--');
+        }
+
+        function descricaoMovimentoPrestacao(prestacao) {
+            if (prestacao.dataMovimento) {
+                return `Movimento: ${formatarDataHistorico(prestacao.dataMovimento)}`;
+            }
+            if (prestacao.periodoInicio === prestacao.periodoFim) {
+                return `Movimento: ${formatarDataHistorico(prestacao.periodoInicio)}`;
+            }
+            return `Período antigo: ${formatarDataHistorico(prestacao.periodoInicio)} a ${formatarDataHistorico(prestacao.periodoFim)}`;
+        }
+
+        function momentoPrestacao(prestacao) {
+            return `${prestacao.dataPrestacao || ''} ${prestacao.horaPrestacao || ''}`;
+        }
+
+        // Atualizar Histórico de Pagamentos
         function atualizarHistorico() {
-            // Última prestação por catamarã
+            // Último pagamento por catamarã
             const ultimasCatamaras = {};
             prestacoes.filter(p => p.tipo === 'catamara').forEach(p => {
                 const nome = nomeCanonicoEmbarcacao(p.nome);
-                if (!ultimasCatamaras[nome] || p.dataPrestacao > ultimasCatamaras[nome].dataPrestacao) {
+                if (!ultimasCatamaras[nome] || momentoPrestacao(p) > momentoPrestacao(ultimasCatamaras[nome])) {
                     ultimasCatamaras[nome] = p;
                 }
             });
 
             const divCatamaras = document.getElementById('historico-catamaras');
             if (Object.keys(ultimasCatamaras).length === 0) {
-                divCatamaras.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>';
+                divCatamaras.innerHTML = '<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>';
             } else {
                 divCatamaras.innerHTML = Object.entries(ultimasCatamaras).map(([nome, p]) => `
                     <div class="bg-green-50 p-3 rounded border-l-4 border-green-500">
@@ -1189,24 +1587,24 @@
                             <span>${escaparHTML(nome)}</span>
                             <span class="text-green-700">${formatarMoeda(p.valor)}</span>
                         </div>
-                        <div class="text-xs text-gray-600">
-                             ${p.dataPrestacao} ${p.horaPrestacao} | Período: ${p.periodoInicio} a ${p.periodoFim}
-                        </div>
+                        <div class="text-xs text-gray-600">${descricaoMovimentoPrestacao(p)}</div>
+                        <div class="text-xs text-gray-500">Pago em ${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</div>
+                        ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
                     </div>
                 `).join('');
             }
 
-            // Última prestação por agência
+            // Último pagamento por agência
             const ultimasAgencias = {};
             prestacoes.filter(p => p.tipo === 'agencia').forEach(p => {
-                if (!ultimasAgencias[p.nome] || p.dataPrestacao > ultimasAgencias[p.nome].dataPrestacao) {
+                if (!ultimasAgencias[p.nome] || momentoPrestacao(p) > momentoPrestacao(ultimasAgencias[p.nome])) {
                     ultimasAgencias[p.nome] = p;
                 }
             });
 
             const divAgencias = document.getElementById('historico-agencias');
             if (Object.keys(ultimasAgencias).length === 0) {
-                divAgencias.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>';
+                divAgencias.innerHTML = '<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>';
             } else {
                 divAgencias.innerHTML = Object.entries(ultimasAgencias).map(([nome, p]) => `
                     <div class="bg-purple-50 p-3 rounded border-l-4 border-purple-500">
@@ -1214,31 +1612,34 @@
                             <span>${escaparHTML(nome)}</span>
                             <span class="text-purple-700">${formatarMoeda(p.valor)}</span>
                         </div>
-                        <div class="text-xs text-gray-600">
-                            📅 ${p.dataPrestacao} ${p.horaPrestacao} | Período: ${p.periodoInicio} a ${p.periodoFim}
-                        </div>
+                        <div class="text-xs text-gray-600">${descricaoMovimentoPrestacao(p)}</div>
+                        <div class="text-xs text-gray-500">Pago em ${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</div>
+                        ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
                     </div>
                 `).join('');
             }
 
-            // Todas as prestações (ordenadas por data)
-            const todasPrestacoes = ordenarPorDataHora(prestacoes.map(p => ({...p, data: p.dataPrestacao, hora: p.horaPrestacao})));
+            // Todos os pagamentos (ordenados pela data do registro)
+            const todasPrestacoes = ordenarPorDataHora(prestacoes.map(p => ({
+                ...p,
+                data: p.dataPrestacao || '',
+                hora: p.horaPrestacao || ''
+            })));
             const divTodas = document.getElementById('lista-prestacoes');
             if (todasPrestacoes.length === 0) {
-                divTodas.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma prestação registrada.</p>';
+                divTodas.innerHTML = '<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>';
             } else {
                 divTodas.innerHTML = todasPrestacoes.slice().reverse().map(p => `
                     <div class="bg-gray-50 p-3 rounded text-sm border-l-4 ${p.tipo === 'catamara' ? 'border-green-500' : 'border-purple-500'}">
                         <div class="flex justify-between font-bold">
                             <span>${p.tipo === 'catamara' ? '🚤' : ''} ${escaparHTML(p.tipo === 'catamara' ? nomeCanonicoEmbarcacao(p.nome) : p.nome)}</span>
-                            <span class="text-gray-500 text-xs">${p.dataPrestacao} ${p.horaPrestacao}</span>
+                            <span class="text-gray-500 text-xs">${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</span>
                         </div>
-                        <div class="text-xs text-gray-600 mb-1">
-                            Período: ${p.periodoInicio} a ${p.periodoFim}
-                        </div>
+                        <div class="text-xs text-gray-600 mb-1">${descricaoMovimentoPrestacao(p)}</div>
                         <div class="text-xs font-bold ${p.tipo === 'catamara' ? 'text-green-700' : 'text-purple-700'}">
                             ${formatarMoeda(p.valor)}
                         </div>
+                        ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
                     </div>
                 `).join('');
             }
@@ -1497,6 +1898,7 @@
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
             document.getElementById('tab-' + tab).classList.remove('hidden');
             document.getElementById('btn-' + tab).classList.add('tab-active');
+            if (tab === 'jacilene') atualizarJacilene();
         }
 
         function limparTudo() {
