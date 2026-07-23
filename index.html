@@ -110,8 +110,9 @@
                     <label class="block text-xs font-semibold mb-1">Quantos almoçaram?</label>
                     <input type="number" id="almocaramGuia" value="0" min="0" class="w-full border rounded p-2 text-center font-bold text-lg">
                     <p class="text-xs text-orange-700 mt-1">
-                        💰 Comissão: <span id="comissaoAlmoco" class="font-bold">R$ 0,00</span>
+                        💰 Comissão Jardas: <span id="comissaoAlmoco" class="font-bold">R$ 0,00</span>
                     </p>
+                    <p class="text-xs text-gray-500 mt-1">Somente a agência Jardas recebe comissão por almoço.</p>
                 </div>
 
                 <button onclick="salvarGuia()" class="w-full btn-add font-bold py-3 rounded-lg shadow-md text-lg">
@@ -128,7 +129,7 @@
                     <div class="flex justify-between text-sm"><span>Total Embarque:</span> <span id="total-guias-pax" class="font-bold">0</span></div>
                     <div class="flex justify-between text-sm"><span>Faturamento:</span> <span id="total-guias-valor" class="font-bold text-green-600">R$ 0,00</span></div>
                     <div class="flex justify-between text-sm"><span>Total Almoço:</span> <span id="total-guias-almoco" class="font-bold text-orange-600">0</span></div>
-                    <div class="flex justify-between text-sm"><span>Total Comissão:</span> <span id="total-guias-comissao" class="font-bold text-red-600">R$ 0,00</span></div>
+                    <div class="flex justify-between text-sm"><span>Total Comissão Jardas:</span> <span id="total-guias-comissao" class="font-bold text-red-600">R$ 0,00</span></div>
                 </div>
                 <button onclick="exportarGuias()" class="w-full mt-3 bg-gray-600 text-white font-bold py-2 rounded-lg shadow text-sm">
                      Exportar CSV
@@ -270,8 +271,8 @@
 
             <!-- SEÇÃO COMISSÃO -->
             <div id="secao-comissao" class="card p-4 mb-4">
-                <h3 class="font-bold text-purple-700 mb-2">📋 Comissão por Agência (Almoço)</h3>
-                <p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por pessoa que almoçou)</p>
+                <h3 class="font-bold text-purple-700 mb-2">📋 Comissão Jardas (Almoço)</h3>
+                <p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por pessoa que almoçou · somente Jardas)</p>
                 <p class="text-xs text-gray-500 mb-3">Os pagamentos também podem ser registrados separadamente por data.</p>
                 <div id="rel-agencias"></div>
             </div>
@@ -364,7 +365,7 @@
             </div>
 
             <div class="card p-4 mb-4">
-                <h3 class="font-bold text-purple-700 mb-3">Último Pagamento às Agências</h3>
+                <h3 class="font-bold text-purple-700 mb-3">Último Pagamento de Comissão (Jardas)</h3>
                 <div id="historico-agencias" class="space-y-2">
                     <p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
                 </div>
@@ -392,7 +393,7 @@
                 <label class="block text-sm font-semibold mb-1">Criança (R$)</label>
                 <input type="number" id="cfg-crianca" step="0.01" class="w-full border rounded p-2 mb-3">
 
-                <label class="block text-sm font-semibold mb-1">Comissão almoço (R$)</label>
+                <label class="block text-sm font-semibold mb-1">Comissão Jardas por almoço (R$)</label>
                 <input type="number" id="cfg-comissao" step="0.01" class="w-full border rounded p-2 mb-3">
 
                 <button onclick="salvarConfig()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow">
@@ -547,6 +548,31 @@
         function escapeCSV(valor) {
             const str = String(valor || '').replace(/"/g, '""');
             return `"${str}"`;
+        }
+
+        function chaveAgencia(nome) {
+            return String(nome || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLocaleLowerCase('pt-BR')
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim();
+        }
+
+        function ehAgenciaComissionada(nome) {
+            return chaveAgencia(nome) === 'jardas';
+        }
+
+        function calcularComissaoAgencia(nome, quantidadeAlmocos) {
+            return ehAgenciaComissionada(nome)
+                ? (Number(quantidadeAlmocos) || 0) * config.comissao
+                : 0;
+        }
+
+        function valorComissaoRegistro(registro) {
+            return ehAgenciaComissionada(registro.agencia)
+                ? Number(registro.comissao) || 0
+                : 0;
         }
 
         function chaveEmbarcacao(nome) {
@@ -1014,10 +1040,11 @@
             const bb = obterNumero('bebesGuia');
             const cort = obterNumero('cortesiaGuia');
             const alm = obterNumero('almocaramGuia');
+            const agencia = document.getElementById('agenciaGuia').value.trim();
 
             const totalEmb = ad + cr + bb + cort;
             const faturamento = (ad * config.adulto) + (cr * config.crianca);
-            const comissao = alm * config.comissao;
+            const comissao = calcularComissaoAgencia(agencia, alm);
 
             document.getElementById('totalEmbarque').innerText = totalEmb;
             document.getElementById('faturamentoEmbarque').innerText = formatarMoeda(faturamento);
@@ -1028,6 +1055,7 @@
             ['adultosGuia', 'criancasGuia', 'bebesGuia', 'cortesiaGuia', 'almocaramGuia'].forEach(id => {
                 document.getElementById(id).addEventListener('input', atualizarTotaisForm);
             });
+            document.getElementById('agenciaGuia').addEventListener('input', atualizarTotaisForm);
 
             document.getElementById('dataGlobal').addEventListener('change', (e) => {
                 atualizarDataGlobal(e.target.value);
@@ -1123,7 +1151,7 @@
 
             const totalEmbarque = ad + cr + bb + cort;
             const faturamento = (ad * config.adulto) + (cr * config.crianca);
-            const comissao = alm * config.comissao;
+            const comissao = calcularComissaoAgencia(agencia, alm);
 
             const novoRegistro = {
                 data, hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
@@ -1186,9 +1214,9 @@
         }
 
         function mesmaPartePrestacao(tipo, nomePrestacao, nomeComparado) {
-            return tipo === 'catamara'
-                ? mesmaEmbarcacao(nomePrestacao, nomeComparado)
-                : nomePrestacao === nomeComparado;
+            if (tipo === 'catamara') return mesmaEmbarcacao(nomePrestacao, nomeComparado);
+            if (tipo === 'agencia') return chaveAgencia(nomePrestacao) === chaveAgencia(nomeComparado);
+            return nomePrestacao === nomeComparado;
         }
 
         function obterPrestacoesDiarias(tipo, nome, dataMovimento) {
@@ -1497,10 +1525,11 @@
                 listaGuias.innerHTML = '<p class="text-gray-500 text-center text-sm">Nenhum guia registrado nesta data.</p>';
             } else {
                 guiadosFiltrados.forEach(e => {
+                    const comissaoRegistro = valorComissaoRegistro(e);
                     totPaxGuias += e.totalPax;
                     totValorGuias += e.faturamento;
                     totAlmocoGuias += (e.almocaram || 0);
-                    totComissaoGuias += (e.comissao || 0);
+                    totComissaoGuias += comissaoRegistro;
                     
                     listaGuias.innerHTML += `
                         <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-green-500">
@@ -1515,7 +1544,7 @@
                             </div>
                             <div class="flex justify-between text-xs mb-2">
                                 <span>🍽️ ${e.almocaram || 0}</span>
-                                <span class="font-bold text-orange-600">${formatarMoeda(e.comissao)}</span>
+                                <span class="font-bold text-orange-600">${formatarMoeda(comissaoRegistro)}</span>
                             </div>
                             <button onclick="excluirGuia('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
                         </div>`;
@@ -1627,28 +1656,31 @@
             // Relatórios Agências
             const relAge = {};
             if (filtroTipoRelatorio !== 'embarque') {
-                contasGuias.forEach(e => {
-                    if (!relAge[e.agencia]) relAge[e.agencia] = { pax: 0, comissao: 0, almocaram: 0, dias: {} };
-                    if (!relAge[e.agencia].dias[e.data]) {
-                        relAge[e.agencia].dias[e.data] = { pax: 0, comissao: 0, almocaram: 0 };
+                contasGuias
+                    .filter(e => ehAgenciaComissionada(e.agencia))
+                    .forEach(e => {
+                    const agenciaComissionada = 'Jardas';
+                    if (!relAge[agenciaComissionada]) relAge[agenciaComissionada] = { pax: 0, comissao: 0, almocaram: 0, dias: {} };
+                    if (!relAge[agenciaComissionada].dias[e.data]) {
+                        relAge[agenciaComissionada].dias[e.data] = { pax: 0, comissao: 0, almocaram: 0 };
                     }
 
                     const pax = Number(e.totalPax) || 0;
-                    const comissao = Number(e.comissao) || 0;
+                    const comissao = valorComissaoRegistro(e);
                     const almocaram = Number(e.almocaram) || 0;
-                    relAge[e.agencia].pax += pax;
-                    relAge[e.agencia].comissao += comissao;
-                    relAge[e.agencia].almocaram += almocaram;
-                    relAge[e.agencia].dias[e.data].pax += pax;
-                    relAge[e.agencia].dias[e.data].comissao += comissao;
-                    relAge[e.agencia].dias[e.data].almocaram += almocaram;
+                    relAge[agenciaComissionada].pax += pax;
+                    relAge[agenciaComissionada].comissao += comissao;
+                    relAge[agenciaComissionada].almocaram += almocaram;
+                    relAge[agenciaComissionada].dias[e.data].pax += pax;
+                    relAge[agenciaComissionada].dias[e.data].comissao += comissao;
+                    relAge[agenciaComissionada].dias[e.data].almocaram += almocaram;
                 });
             }
             const divAge = document.getElementById('rel-agencias');
             if (filtroTipoRelatorio === 'embarque') {
                 divAge.innerHTML = '<p class="text-gray-500 text-sm italic">Filtro ativo: Só Embarque</p>';
             } else if (Object.keys(relAge).length === 0) {
-                divAge.innerHTML = '<p class="text-gray-500 text-sm">Nenhum registro no período.</p>';
+                divAge.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma comissão da Jardas no período.</p>';
             } else {
                 divAge.innerHTML = Object.entries(relAge)
                     .sort(([ageA], [ageB]) => ageA.localeCompare(ageB, 'pt-BR'))
@@ -1699,7 +1731,7 @@
             let totBruto = 0, totComissao = 0, totRepasse = 0;
             contasGuias.forEach(e => {
                 totBruto += e.faturamento;
-                totComissao += e.comissao;
+                totComissao += valorComissaoRegistro(e);
             });
             contasBarcos.forEach(e => totRepasse += e.valorRepasse);
             document.getElementById('res-bruto').innerText = formatarMoeda(totBruto);
@@ -1784,15 +1816,18 @@
 
             // Último pagamento por agência
             const ultimasAgencias = {};
-            prestacoes.filter(p => p.tipo === 'agencia').forEach(p => {
-                if (!ultimasAgencias[p.nome] || momentoPrestacao(p) > momentoPrestacao(ultimasAgencias[p.nome])) {
-                    ultimasAgencias[p.nome] = p;
+            prestacoes
+                .filter(p => p.tipo === 'agencia' && ehAgenciaComissionada(p.nome))
+                .forEach(p => {
+                const nome = 'Jardas';
+                if (!ultimasAgencias[nome] || momentoPrestacao(p) > momentoPrestacao(ultimasAgencias[nome])) {
+                    ultimasAgencias[nome] = p;
                 }
             });
 
             const divAgencias = document.getElementById('historico-agencias');
             if (Object.keys(ultimasAgencias).length === 0) {
-                divAgencias.innerHTML = '<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>';
+                divAgencias.innerHTML = '<p class="text-gray-500 text-sm">Nenhum pagamento de comissão da Jardas registrado.</p>';
             } else {
                 divAgencias.innerHTML = Object.entries(ultimasAgencias).map(([nome, p]) => `
                     <div class="bg-purple-50 p-3 rounded border-l-4 border-purple-500">
@@ -1860,7 +1895,7 @@
             
             let csv = 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total Embarque;Almoço;Faturamento;Comissão\n';
             dados.forEach(e => {
-                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${e.comissao}\n`;
+                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
             });
             
             const BOM = '\uFEFF';
@@ -1932,7 +1967,7 @@
                 csv += '=== EMBARQUES (POR GUIA) ===\n';
                 csv += 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total;Almoço;Faturamento;Comissão\n';
                 dadosGuias.forEach(e => {
-                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${e.comissao}\n`;
+                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
                 });
             }
             
