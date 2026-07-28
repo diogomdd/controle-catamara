@@ -329,14 +329,18 @@
             </div>
 
             <div class="card p-4 mb-4">
-                <div class="flex justify-between items-start gap-2 mb-3">
-                    <div>
-                        <h3 class="font-bold text-pink-700">Valores por dia</h3>
-                        <p class="text-xs text-gray-500">Toque em “Marcar como pago” na data correspondente.</p>
+                <div class="mb-3">
+                    <h3 class="font-bold text-pink-700">Valores por dia</h3>
+                    <p class="text-xs text-gray-500">Toque em “Marcar como pago” na data correspondente.</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div class="bg-pink-50 rounded-lg p-2">
+                        <div class="text-xs text-gray-500">Total do período</div>
+                        <div id="jacilene-total" class="font-bold text-pink-700">R$ 0,00</div>
                     </div>
-                    <div class="text-right">
-                        <div class="text-xs text-gray-500">Total calculado</div>
-                        <div id="jacilene-total" class="font-bold text-green-700">R$ 0,00</div>
+                    <div id="jacilene-saldo-card" class="bg-green-50 rounded-lg p-2 text-right">
+                        <div class="text-xs text-gray-500">Saldo devedor</div>
+                        <div id="jacilene-saldo-devedor" class="font-bold text-green-700">R$ 0,00</div>
                     </div>
                 </div>
                 <div id="jacilene-resumo" class="text-xs text-gray-500 mb-3"></div>
@@ -928,11 +932,21 @@
             const lista = document.getElementById('jacilene-lista');
             const resumo = document.getElementById('jacilene-resumo');
             const totalElemento = document.getElementById('jacilene-total');
+            const saldoElemento = document.getElementById('jacilene-saldo-devedor');
+            const saldoCard = document.getElementById('jacilene-saldo-card');
+
+            const atualizarSaldoDevedor = valor => {
+                const saldo = Math.max(0, Number(valor) || 0);
+                saldoElemento.innerText = formatarMoeda(saldo);
+                saldoElemento.className = `font-bold ${saldo > 0 ? 'text-red-600' : 'text-green-700'}`;
+                saldoCard.className = `${saldo > 0 ? 'bg-red-50' : 'bg-green-50'} rounded-lg p-2 text-right`;
+            };
 
             if (!dataInicio || !dataFim) {
                 lista.innerHTML = '<p class="text-gray-500 text-sm text-center">Selecione o período.</p>';
                 resumo.innerText = '';
                 totalElemento.innerText = formatarMoeda(0);
+                atualizarSaldoDevedor(0);
                 atualizarHistoricoJacilene();
                 return;
             }
@@ -941,6 +955,7 @@
                 lista.innerHTML = '<p class="text-red-600 text-sm text-center">A data inicial não pode ser posterior à data final.</p>';
                 resumo.innerText = '';
                 totalElemento.innerText = formatarMoeda(0);
+                atualizarSaldoDevedor(0);
                 atualizarHistoricoJacilene();
                 return;
             }
@@ -963,11 +978,13 @@
                 lista.innerHTML = '<p class="text-gray-500 text-sm text-center">Nenhum embarque do Velho Bill no período.</p>';
                 resumo.innerText = `Período: ${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}`;
                 totalElemento.innerText = formatarMoeda(0);
+                atualizarSaldoDevedor(0);
                 atualizarHistoricoJacilene();
                 return;
             }
 
             let total = 0;
+            let saldoDevedor = 0;
             let diasCalculados = 0;
             let diasSemRegra = 0;
 
@@ -990,6 +1007,12 @@
 
                 diasCalculados += 1;
                 total += calculo.valor;
+                saldoDevedor += obterResumoPagamentoDiario(
+                    'jacilene',
+                    'Jacilene',
+                    data,
+                    calculo.valor
+                ).saldoRestante;
                 const limite = dadosDia.adultos > 18
                     ? ` · cálculo limitado a 18 PAX`
                     : ` · ${calculo.paxAplicado} PAX`;
@@ -1007,6 +1030,7 @@
             }).join('');
 
             totalElemento.innerText = formatarMoeda(total);
+            atualizarSaldoDevedor(saldoDevedor);
             resumo.innerText = `${diasCalculados} dia${diasCalculados === 1 ? '' : 's'} calculado${diasCalculados === 1 ? '' : 's'}` +
                 (diasSemRegra ? ` · ${diasSemRegra} dia${diasSemRegra === 1 ? '' : 's'} abaixo de 13 adultos` : '');
             atualizarHistoricoJacilene();
@@ -1662,18 +1686,31 @@
                     const agenciaComissionada = 'Jardas';
                     if (!relAge[agenciaComissionada]) relAge[agenciaComissionada] = { pax: 0, comissao: 0, almocaram: 0, dias: {} };
                     if (!relAge[agenciaComissionada].dias[e.data]) {
-                        relAge[agenciaComissionada].dias[e.data] = { pax: 0, comissao: 0, almocaram: 0 };
+                        relAge[agenciaComissionada].dias[e.data] = { pax: 0, comissao: 0, almocaram: 0, guias: [] };
                     }
 
                     const pax = Number(e.totalPax) || 0;
                     const comissao = valorComissaoRegistro(e);
                     const almocaram = Number(e.almocaram) || 0;
+                    const nomeGuia = String(e.guia || '').trim() || 'Guia não informado';
+                    const diaAgencia = relAge[agenciaComissionada].dias[e.data];
+                    let dadosGuia = diaAgencia.guias.find(item =>
+                        chaveAgencia(item.nome) === chaveAgencia(nomeGuia)
+                    );
+                    if (!dadosGuia) {
+                        dadosGuia = { nome: nomeGuia, pax: 0, comissao: 0, almocaram: 0 };
+                        diaAgencia.guias.push(dadosGuia);
+                    }
+
                     relAge[agenciaComissionada].pax += pax;
                     relAge[agenciaComissionada].comissao += comissao;
                     relAge[agenciaComissionada].almocaram += almocaram;
-                    relAge[agenciaComissionada].dias[e.data].pax += pax;
-                    relAge[agenciaComissionada].dias[e.data].comissao += comissao;
-                    relAge[agenciaComissionada].dias[e.data].almocaram += almocaram;
+                    diaAgencia.pax += pax;
+                    diaAgencia.comissao += comissao;
+                    diaAgencia.almocaram += almocaram;
+                    dadosGuia.pax += pax;
+                    dadosGuia.comissao += comissao;
+                    dadosGuia.almocaram += almocaram;
                 });
             }
             const divAge = document.getElementById('rel-agencias');
@@ -1685,9 +1722,26 @@
                 divAge.innerHTML = Object.entries(relAge)
                     .sort(([ageA], [ageB]) => ageA.localeCompare(ageB, 'pt-BR'))
                     .map(([age, d]) => {
-                    const textoWhats = `*Relatório ${age}*\nPeríodo: ${dataInicio} a ${dataFim}\nEmbarque: ${d.pax}\nAlmoço: ${d.almocaram}\nComissão: ${formatarMoeda(d.comissao)}`;
-                    const linhasDiarias = Object.entries(d.dias)
-                        .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+                    const diasDaAgencia = Object.entries(d.dias)
+                        .sort(([dataA], [dataB]) => dataB.localeCompare(dataA));
+                    const saldoDevedor = diasDaAgencia.reduce((saldo, [data, dia]) =>
+                        saldo + obterResumoPagamentoDiario('agencia', age, data, dia.comissao).saldoRestante,
+                    0);
+                    const detalhesWhats = diasDaAgencia.map(([data, dia]) => {
+                        const guiasDoDia = dia.guias
+                            .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
+                            .map(guia =>
+                                `• ${guia.nome}: ${guia.pax} passageiros · ${guia.almocaram} almoços · ${formatarMoeda(guia.comissao)}`
+                            )
+                            .join('\n');
+                        const resumoPagamento = obterResumoPagamentoDiario('agencia', age, data, dia.comissao);
+                        const situacao = resumoPagamento.saldoRestante > 0
+                            ? `Saldo do dia: ${formatarMoeda(resumoPagamento.saldoRestante)}`
+                            : 'Situação: pago';
+                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\nSubtotal do dia: ${dia.pax} passageiros · ${dia.almocaram} almoços · ${formatarMoeda(dia.comissao)}\n${situacao}`;
+                    }).join('\n\n');
+                    const textoWhats = `*Prestação de contas ${age}*\nPeríodo: ${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n\n${detalhesWhats}\n\n*Total do período: ${formatarMoeda(d.comissao)}*\n*Saldo devedor: ${formatarMoeda(saldoDevedor)}*`;
+                    const linhasDiarias = diasDaAgencia
                         .map(([data, dia]) => renderizarLinhaPagamentoDiario(
                             'agencia',
                             age,
@@ -1699,14 +1753,18 @@
 
                     return `
                         <div class="border-2 border-purple-200 rounded-xl p-3 mb-4">
-                            <div class="flex justify-between items-start gap-2 mb-2">
-                                <div>
-                                    <div class="font-bold text-purple-800">${escaparHTML(age)}</div>
-                                    <div class="text-xs text-gray-500">🚤 ${d.pax} passageiros · 🍽️ ${d.almocaram} almoços</div>
-                                </div>
-                                <div class="text-right">
-                                    <div class="text-xs text-gray-500">Total do período</div>
-                                    <div class="font-bold text-purple-700">${formatarMoeda(d.comissao)}</div>
+                            <div class="mb-2">
+                                <div class="font-bold text-purple-800">${escaparHTML(age)}</div>
+                                <div class="text-xs text-gray-500">🚤 ${d.pax} passageiros · 🍽️ ${d.almocaram} almoços</div>
+                                <div class="grid grid-cols-2 gap-2 mt-3">
+                                    <div class="bg-purple-50 rounded-lg p-2">
+                                        <div class="text-xs text-gray-500">Total do período</div>
+                                        <div class="font-bold text-purple-700">${formatarMoeda(d.comissao)}</div>
+                                    </div>
+                                    <div class="${saldoDevedor > 0 ? 'bg-red-50' : 'bg-green-50'} rounded-lg p-2 text-right">
+                                        <div class="text-xs text-gray-500">Saldo devedor</div>
+                                        <div class="font-bold ${saldoDevedor > 0 ? 'text-red-600' : 'text-green-700'}">${formatarMoeda(saldoDevedor)}</div>
+                                    </div>
                                 </div>
                             </div>
                             <a href="https://wa.me/?text=${encodeURIComponent(textoWhats)}" target="_blank" class="block w-full bg-green-500 text-white text-xs font-bold py-2 rounded text-center mb-3">WhatsApp</a>
