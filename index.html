@@ -79,6 +79,20 @@
                 <input type="text" id="agenciaGuia" list="agencias-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Agência X">
                 <datalist id="agencias-list"></datalist>
 
+                <label for="formaPagamentoGuia" class="block text-sm font-semibold mb-1">Forma de pagamento</label>
+                <select id="formaPagamentoGuia" class="w-full border rounded p-2 mb-3 bg-white">
+                    <option value="" selected disabled>Selecione uma opção</option>
+                    <option value="nao-pagou">Não pagou</option>
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="cartao">Cartão</option>
+                    <option value="pix">PIX</option>
+                    <option value="dinheiro-cartao">Dinheiro + cartão</option>
+                </select>
+
+                <label for="valorPagoGuia" class="block text-sm font-semibold mb-1">Valor pago (R$)</label>
+                <input type="number" id="valorPagoGuia" value="0" min="0" step="0.01" disabled class="w-full border rounded p-2 mb-1 bg-gray-100" placeholder="0,00">
+                <p class="text-xs text-gray-500 mb-3">Informe somente o valor realmente recebido.</p>
+
                 <div class="bg-blue-50 p-3 rounded-lg mb-3">
                     <h3 class="font-bold text-sm text-blue-700 mb-2">🚤 EMBARQUE</h3>
                     <div class="grid grid-cols-2 gap-2">
@@ -536,6 +550,12 @@
             return valor;
         }
 
+        function obterValorMonetario(id) {
+            const valor = parseFloat(document.getElementById(id).value);
+            if (isNaN(valor) || valor < 0) return 0;
+            return Math.round(valor * 100) / 100;
+        }
+
         function escaparHTML(texto) {
             return String(texto)
                 .replaceAll('&', '&amp;')
@@ -565,6 +585,35 @@
 
         function ehAgenciaComissionada(nome) {
             return chaveAgencia(nome) === 'jardas';
+        }
+
+        function nomeFormaPagamentoGuia(valor) {
+            const formas = {
+                'nao-pagou': 'Não pagou',
+                'dinheiro': 'Dinheiro',
+                'cartao': 'Cartão',
+                'pix': 'PIX',
+                'dinheiro-cartao': 'Dinheiro + cartão'
+            };
+            return formas[String(valor || '')] || 'Não informado';
+        }
+
+        function detalharPagamentoGuia(formaPagamento, valor) {
+            const nomeForma = nomeFormaPagamentoGuia(formaPagamento);
+            return ['Dinheiro', 'Cartão', 'PIX', 'Dinheiro + cartão'].includes(nomeForma)
+                ? `${nomeForma} · ${formatarMoeda(Number(valor) || 0)}`
+                : nomeForma;
+        }
+
+        function atualizarCampoValorPagoGuia() {
+            const formaPagamento = document.getElementById('formaPagamentoGuia').value;
+            const campoValor = document.getElementById('valorPagoGuia');
+            const aceitaValor = Boolean(formaPagamento) && formaPagamento !== 'nao-pagou';
+
+            campoValor.disabled = !aceitaValor;
+            campoValor.className = `w-full border rounded p-2 mb-1 ${aceitaValor ? 'bg-white' : 'bg-gray-100'}`;
+            if (!aceitaValor) campoValor.value = 0;
+            if (aceitaValor && Number(campoValor.value) === 0) campoValor.value = '';
         }
 
         function calcularComissaoAgencia(nome, quantidadeAlmocos) {
@@ -1080,6 +1129,7 @@
                 document.getElementById(id).addEventListener('input', atualizarTotaisForm);
             });
             document.getElementById('agenciaGuia').addEventListener('input', atualizarTotaisForm);
+            document.getElementById('formaPagamentoGuia').addEventListener('change', atualizarCampoValorPagoGuia);
 
             document.getElementById('dataGlobal').addEventListener('change', (e) => {
                 atualizarDataGlobal(e.target.value);
@@ -1165,6 +1215,8 @@
             const data = dataGlobal;
             const guia = document.getElementById('nomeGuia').value.trim();
             const agencia = document.getElementById('agenciaGuia').value.trim();
+            const formaPagamento = document.getElementById('formaPagamentoGuia').value;
+            let valorPago = obterValorMonetario('valorPagoGuia');
             const ad = obterNumero('adultosGuia');
             const cr = obterNumero('criancasGuia');
             const bb = obterNumero('bebesGuia');
@@ -1172,6 +1224,12 @@
             const alm = obterNumero('almocaramGuia');
 
             if (!guia || !agencia) return alert('Preencha Guia e Agência!');
+            if (!formaPagamento) return alert('Selecione a forma de pagamento!');
+            if (formaPagamento === 'nao-pagou') {
+                valorPago = 0;
+            } else if (valorPago <= 0) {
+                return alert('Informe o valor que foi pago!');
+            }
 
             const totalEmbarque = ad + cr + bb + cort;
             const faturamento = (ad * config.adulto) + (cr * config.crianca);
@@ -1179,7 +1237,7 @@
 
             const novoRegistro = {
                 data, hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
-                guia, agencia,
+                guia, agencia, formaPagamento, valorPago,
                 adultos: ad, criancas: cr, bebes: bb, cortesia: cort,
                 almocaram: alm,
                 faturamento, comissao,
@@ -1191,6 +1249,9 @@
                 .then(() => {
                     document.getElementById('nomeGuia').value = '';
                     document.getElementById('agenciaGuia').value = '';
+                    document.getElementById('formaPagamentoGuia').value = '';
+                    document.getElementById('valorPagoGuia').value = 0;
+                    atualizarCampoValorPagoGuia();
                     document.getElementById('adultosGuia').value = 0;
                     document.getElementById('criancasGuia').value = 0;
                     document.getElementById('bebesGuia').value = 0;
@@ -1566,6 +1627,7 @@
                                 <span>🚤 ${e.adultos}+${e.criancas}+${e.bebes}+${e.cortesia} = ${e.totalPax}</span>
                                 <span class="font-bold text-green-600">${formatarMoeda(e.faturamento)}</span>
                             </div>
+                            <div class="text-xs font-semibold text-blue-700 mb-1">💳 Pagamento: ${escaparHTML(detalharPagamentoGuia(e.formaPagamento, e.valorPago))}</div>
                             <div class="flex justify-between text-xs mb-2">
                                 <span>🍽️ ${e.almocaram || 0}</span>
                                 <span class="font-bold text-orange-600">${formatarMoeda(comissaoRegistro)}</span>
@@ -1692,13 +1754,16 @@
                     const pax = Number(e.totalPax) || 0;
                     const comissao = valorComissaoRegistro(e);
                     const almocaram = Number(e.almocaram) || 0;
+                    const valorPago = Number(e.valorPago) || 0;
                     const nomeGuia = String(e.guia || '').trim() || 'Guia não informado';
+                    const formaPagamento = String(e.formaPagamento || '');
                     const diaAgencia = relAge[agenciaComissionada].dias[e.data];
                     let dadosGuia = diaAgencia.guias.find(item =>
-                        chaveAgencia(item.nome) === chaveAgencia(nomeGuia)
+                        chaveAgencia(item.nome) === chaveAgencia(nomeGuia) &&
+                        item.formaPagamento === formaPagamento
                     );
                     if (!dadosGuia) {
-                        dadosGuia = { nome: nomeGuia, pax: 0, comissao: 0, almocaram: 0 };
+                        dadosGuia = { nome: nomeGuia, formaPagamento, pax: 0, comissao: 0, almocaram: 0, valorPago: 0 };
                         diaAgencia.guias.push(dadosGuia);
                     }
 
@@ -1711,6 +1776,7 @@
                     dadosGuia.pax += pax;
                     dadosGuia.comissao += comissao;
                     dadosGuia.almocaram += almocaram;
+                    dadosGuia.valorPago += valorPago;
                 });
             }
             const divAge = document.getElementById('rel-agencias');
@@ -1731,7 +1797,7 @@
                         const guiasDoDia = dia.guias
                             .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
                             .map(guia =>
-                                `• ${guia.nome}: ${guia.pax} passageiros · ${guia.almocaram} almoços · ${formatarMoeda(guia.comissao)}`
+                                `• ${guia.nome}: ${guia.pax} passageiros · ${guia.almocaram} almoços · ${formatarMoeda(guia.comissao)}\n  Pagamento: ${detalharPagamentoGuia(guia.formaPagamento, guia.valorPago)}`
                             )
                             .join('\n');
                         const resumoPagamento = obterResumoPagamentoDiario('agencia', age, data, dia.comissao);
@@ -1742,13 +1808,21 @@
                     }).join('\n\n');
                     const textoWhats = `*Prestação de contas ${age}*\nPeríodo: ${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n\n${detalhesWhats}\n\n*Total do período: ${formatarMoeda(d.comissao)}*\n*Saldo devedor: ${formatarMoeda(saldoDevedor)}*`;
                     const linhasDiarias = diasDaAgencia
-                        .map(([data, dia]) => renderizarLinhaPagamentoDiario(
-                            'agencia',
-                            age,
-                            data,
-                            dia.comissao,
-                            `🚤 ${dia.pax} passageiros · 🍽️ ${dia.almocaram} almoços`
-                        ))
+                        .map(([data, dia]) => {
+                            const pagamentosGuias = dia.guias
+                                .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
+                                .map(guia =>
+                                    `${escaparHTML(guia.nome)}: ${escaparHTML(detalharPagamentoGuia(guia.formaPagamento, guia.valorPago))}`
+                                )
+                                .join(' · ');
+                            return renderizarLinhaPagamentoDiario(
+                                'agencia',
+                                age,
+                                data,
+                                dia.comissao,
+                                `🚤 ${dia.pax} passageiros · 🍽️ ${dia.almocaram} almoços<div class="mt-1 text-blue-700">💳 ${pagamentosGuias}</div>`
+                            );
+                        })
                         .join('');
 
                     return `
@@ -1951,9 +2025,10 @@
             const dados = ordenarPorDataHora(registrosGuias.filter(e => e.data === dataGlobal));
             if (dados.length === 0) return alert('Nenhum registro.');
             
-            let csv = 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total Embarque;Almoço;Faturamento;Comissão\n';
+            let csv = 'Data;Hora;Guia;Agência;Forma de pagamento;Valor pago;Adultos;Crianças;Bebês;Cortesia;Total Embarque;Almoço;Faturamento;Comissão\n';
             dados.forEach(e => {
-                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
+                const valorPago = e.valorPago === undefined ? '' : (Number(e.valorPago) || 0);
+                csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${escapeCSV(nomeFormaPagamentoGuia(e.formaPagamento))};${valorPago};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
             });
             
             const BOM = '\uFEFF';
@@ -2023,9 +2098,10 @@
             
             if (filtroTipoRelatorio !== 'comissao') {
                 csv += '=== EMBARQUES (POR GUIA) ===\n';
-                csv += 'Data;Hora;Guia;Agência;Adultos;Crianças;Bebês;Cortesia;Total;Almoço;Faturamento;Comissão\n';
+                csv += 'Data;Hora;Guia;Agência;Forma de pagamento;Valor pago;Adultos;Crianças;Bebês;Cortesia;Total;Almoço;Faturamento;Comissão\n';
                 dadosGuias.forEach(e => {
-                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
+                    const valorPago = e.valorPago === undefined ? '' : (Number(e.valorPago) || 0);
+                    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${escapeCSV(nomeFormaPagamentoGuia(e.formaPagamento))};${valorPago};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
                 });
             }
             
