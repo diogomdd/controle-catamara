@@ -548,6 +548,7 @@
         let pagamentoEmEdicao = null;
         let guiaEmEdicaoId = null;
         let vouchersJardas = {};
+        const inicioCortesiasAutomaticasJardas = '2026-07-21';
         const tabelaJacilene = {
             13: 126.50,
             14: 160.50,
@@ -636,6 +637,13 @@
             if (valor > 0.009) return { rotulo: 'Devemos ao Jardas', texto: `Devemos ao Jardas: ${formatarMoeda(valor)}` };
             if (valor < -0.009) return { rotulo: 'Jardas deve', texto: `Jardas deve: ${formatarMoeda(Math.abs(valor))}` };
             return { rotulo: 'Saldo', texto: 'Saldo zerado' };
+        }
+
+        function calcularCortesiasJardas(adultos) {
+            const quantidade = Math.max(0, Math.floor(Number(adultos) || 0));
+            const gruposDeVinte = Math.floor(quantidade / 20);
+            const restante = quantidade % 20;
+            return (gruposDeVinte * 2) + (restante >= 15 ? 1 : 0);
         }
 
         function atualizarCampoValorPagoGuia() {
@@ -735,12 +743,13 @@
                 ctx.stroke();
 
                 desenharLinha(`Total de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}`, margem + 34, linhaY + 30, 31, '#1f2937', true);
-                desenharLinha(`Total de cortesia = ${dia.cortesias}`, margem + 34, linhaY + 78, 31);
+                desenharLinha(`Cortesias concedidas = ${dia.cortesiasConcedidas}`, margem + 34, linhaY + 78, 31);
                 desenharLinha(`Valor total = ${formatarValorCurto(dia.passagens)}`, margem + 34, linhaY + 126, 31);
                 desenharLinha(`Almoço = ${formatarValorCurto(dia.comissao)}`, margem + 34, linhaY + 174, 31);
                 let calculo = `${formatarValorCurto(dia.passagens)}`;
                 if (dia.valorPago > 0) calculo += ` - ${formatarValorCurto(dia.valorPago)} pago`;
                 calculo += ` - ${formatarValorCurto(dia.comissao)} almoço`;
+                if (dia.valorCortesiasConcedidas > 0) calculo += ` - ${formatarValorCurto(dia.valorCortesiasConcedidas)} cortesias`;
                 if (dia.pagoAoJardas > 0) calculo += ` + ${formatarValorCurto(dia.pagoAoJardas)} pago ao Jardas`;
                 desenharLinha(`Cálculo = ${calculo}`, margem + 34, linhaY + 222, 27, '#475569');
 
@@ -758,7 +767,7 @@
                 let resumoY = y + 58;
                 desenharLinha('TOTAL DO PERÍODO', margem + 34, resumoY, 38, '#14532d', true);
                 desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 54, 30);
-                desenharLinha(`Total de cortesia = ${voucher.cortesias}`, margem + 34, resumoY + 102, 30);
+                desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 102, 30);
                 desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 150, 30);
                 desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 198, 30);
                 if (voucher.valorPago > 0) desenharLinha(`Pagamentos = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 246, 30);
@@ -2047,7 +2056,7 @@
                     .filter(e => ehAgenciaComissionada(e.agencia))
                     .forEach(e => {
                     const agenciaComissionada = 'Jardas';
-                    if (!relAge[agenciaComissionada]) relAge[agenciaComissionada] = { pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, dias: {} };
+                    if (!relAge[agenciaComissionada]) relAge[agenciaComissionada] = { pax: 0, adultos: 0, adultosCortesia: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, dias: {} };
                     if (!relAge[agenciaComissionada].dias[e.data]) {
                         relAge[agenciaComissionada].dias[e.data] = { pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, guias: [] };
                     }
@@ -2074,6 +2083,9 @@
 
                     relAge[agenciaComissionada].pax += pax;
                     relAge[agenciaComissionada].adultos += adultos;
+                    if (e.data >= inicioCortesiasAutomaticasJardas) {
+                        relAge[agenciaComissionada].adultosCortesia += adultos;
+                    }
                     relAge[agenciaComissionada].criancas += criancas;
                     relAge[agenciaComissionada].cortesias += cortesias;
                     relAge[agenciaComissionada].passagens += passagens;
@@ -2113,7 +2125,9 @@
                         const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago - dia.passagens);
                         return total + obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
                     }, 0);
-                    const saldoLiquido = d.valorPago + d.comissao - d.passagens - totalPagoAoJardas;
+                    const cortesiasConcedidas = calcularCortesiasJardas(d.adultosCortesia);
+                    const valorCortesiasConcedidas = cortesiasConcedidas * config.adulto;
+                    const saldoLiquido = d.valorPago + d.comissao + valorCortesiasConcedidas - d.passagens - totalPagoAoJardas;
                     const situacaoPeriodo = situacaoSaldoJardas(saldoLiquido);
                     const detalhesWhats = diasDaAgencia.map(([data, dia]) => {
                         const guiasDoDia = dia.guias
@@ -2172,6 +2186,8 @@
                         adultos: d.adultos,
                         criancas: d.criancas,
                         cortesias: d.cortesias,
+                        cortesiasConcedidas,
+                        valorCortesiasConcedidas,
                         passagens: d.passagens,
                         comissao: d.comissao,
                         valorPago: d.valorPago,
@@ -2180,16 +2196,20 @@
                         dias: diasDaAgencia.map(([data, dia]) => {
                             const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago - dia.passagens);
                             const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                            const cortesiasDoDia = diasDaAgencia.length === 1 ? cortesiasConcedidas : 0;
+                            const valorCortesiasDoDia = cortesiasDoDia * config.adulto;
                             return {
                                 data,
                                 adultos: dia.adultos,
                                 criancas: dia.criancas,
                                 cortesias: dia.cortesias,
+                                cortesiasConcedidas: cortesiasDoDia,
+                                valorCortesiasConcedidas: valorCortesiasDoDia,
                                 passagens: dia.passagens,
                                 comissao: dia.comissao,
                                 valorPago: dia.valorPago,
                                 pagoAoJardas,
-                                saldo: dia.valorPago + dia.comissao - dia.passagens - pagoAoJardas,
+                                saldo: dia.valorPago + dia.comissao + valorCortesiasDoDia - dia.passagens - pagoAoJardas,
                                 guias: dia.guias
                                     .slice()
                                     .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
@@ -2202,6 +2222,10 @@
                             <div class="mb-2">
                                 <div class="font-bold text-purple-800">${escaparHTML(age)}</div>
                                 <div class="text-xs text-gray-500">👨 ${d.adultos} adultos · ${d.criancas} crianças · ${d.cortesias} cortesias</div>
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
+                                    <span>Cortesias concedidas no período</span>
+                                    <strong class="text-green-800">${cortesiasConcedidas} · -${formatarMoeda(valorCortesiasConcedidas)}</strong>
+                                </div>
                                 <div class="grid grid-cols-2 gap-2 mt-2">
                                     <div class="bg-purple-50 rounded-lg p-2">
                                         <div class="text-xs text-gray-500">Valor das passagens</div>
