@@ -483,8 +483,9 @@
             <textarea id="pagamento-observacao" rows="3" maxlength="300" class="w-full border-2 border-blue-500 rounded p-2 mb-4" placeholder="Ex: Pix, dinheiro, transferência, pago para João..."></textarea>
 
             <div id="saldo-prestacao-jardas" class="hidden bg-purple-50 border-2 border-purple-200 rounded-lg p-3 mb-4">
-                <label for="saldo-prestacao-tipo" class="block text-sm font-bold text-purple-800 mb-1">Como ficou o saldo depois desta prestação?</label>
-                <select id="saldo-prestacao-tipo" onchange="atualizarCampoSaldoPrestacao()" class="w-full border-2 border-purple-400 rounded p-2 bg-white mb-2">
+                <div class="text-sm font-bold text-purple-800 mb-1">Saldo calculado automaticamente</div>
+                <div id="saldo-prestacao-automatico" class="text-lg font-bold text-purple-900 bg-white rounded p-2 mb-2">Calculando...</div>
+                <select id="saldo-prestacao-tipo" class="hidden">
                     <option value="">Selecione</option>
                     <option value="zerado">Saldo zerado</option>
                     <option value="jardas-deve">Jardas ficou devendo</option>
@@ -494,7 +495,7 @@
                     <label for="saldo-prestacao-valor" class="block text-sm font-semibold mb-1">Valor que ficou devendo:</label>
                     <input id="saldo-prestacao-valor" type="number" min="0.01" step="0.01" inputmode="decimal" class="w-full border-2 border-purple-400 rounded p-2 text-lg font-bold">
                 </div>
-                <p class="text-xs text-purple-700 mt-2">Essa informação ficará salva no histórico da prestação.</p>
+                <p class="text-xs text-purple-700 mt-2">O saldo anterior e os movimentos até esta data serão considerados automaticamente.</p>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -656,6 +657,70 @@
             };
         }
 
+        function deslocarData(data, quantidadeDias) {
+            const [ano, mes, dia] = String(data).split('-').map(Number);
+            const resultado = new Date(Date.UTC(ano, mes - 1, dia));
+            resultado.setUTCDate(resultado.getUTCDate() + quantidadeDias);
+            return resultado.toISOString().slice(0, 10);
+        }
+
+        function saldoAssinadoPrestacao(prestacao) {
+            const valor = Math.max(0, Number(prestacao?.saldoDeclaradoValor) || 0);
+            if (prestacao?.saldoDeclaradoTipo === 'jardas-deve') return -valor;
+            if (prestacao?.saldoDeclaradoTipo === 'nos-devemos') return valor;
+            return 0;
+        }
+
+        function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
+            if (!dataFim || dataFim < inicioCortesiasAutomaticasJardas) return 0;
+
+            const prestacoesJardas = prestacoes
+                .filter(p =>
+                    p.id !== prestacaoIgnoradaId &&
+                    p.tipo === 'agencia' &&
+                    ehAgenciaComissionada(p.nome) &&
+                    p.dataMovimento &&
+                    p.dataMovimento <= dataFim
+                );
+            const ultimoFechamento = prestacoesJardas
+                .filter(p => p.saldoDeclaradoTipo)
+                .sort((a, b) => `${b.dataMovimento} ${momentoPrestacao(b)}`.localeCompare(`${a.dataMovimento} ${momentoPrestacao(a)}`))[0];
+
+            let saldo = ultimoFechamento ? saldoAssinadoPrestacao(ultimoFechamento) : 0;
+            const dataInicio = ultimoFechamento
+                ? deslocarData(ultimoFechamento.dataMovimento, 1)
+                : inicioCortesiasAutomaticasJardas;
+            if (dataInicio > dataFim) return saldo;
+
+            const dias = {};
+            registrosGuias
+                .filter(registro =>
+                    ehAgenciaComissionada(registro.agencia) &&
+                    registro.data >= dataInicio &&
+                    registro.data <= dataFim
+                )
+                .forEach(registro => {
+                    if (!dias[registro.data]) dias[registro.data] = { adultos: 0, criancas: 0, valorPago: 0 };
+                    dias[registro.data].adultos += Number(registro.adultos) || 0;
+                    dias[registro.data].criancas += Number(registro.criancas) || 0;
+                    dias[registro.data].valorPago += Number(registro.valorPago) || 0;
+                });
+
+            Object.entries(dias)
+                .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+                .forEach(([data, dia]) => {
+                    const passagens = (dia.adultos * config.adulto) + (dia.criancas * config.crianca);
+                    const comissao = dia.adultos * config.comissao;
+                    const cortesias = obterCortesiasDiariasJardas(data, dia.adultos);
+                    saldo += dia.valorPago + comissao + cortesias.valor - passagens;
+                });
+
+            const pagamentosNossos = prestacoesJardas
+                .filter(p => p.dataMovimento >= dataInicio && p.dataMovimento <= dataFim)
+                .reduce((total, p) => total + Math.max(0, Number(p.valor) || 0), 0);
+            return saldo - pagamentosNossos;
+        }
+
         function atualizarCampoValorPagoGuia() {
             const formaPagamento = document.getElementById('formaPagamentoGuia').value;
             const campoValor = document.getElementById('valorPagoGuia');
@@ -696,8 +761,8 @@
             const largura = 1080;
             const margem = 64;
             const alturaCabecalho = 230;
-            const alturasDias = voucher.dias.map(dia => 390 + (dia.guias.length * 58) + (dia.valorPago > 0 ? 48 : 0) + (dia.pagoAoJardas > 0 ? 48 : 0));
-            const alturaResumo = voucher.dias.length > 1 ? 390 : 0;
+            const alturasDias = voucher.dias.map(dia => 438 + (dia.guias.length * 58) + (dia.valorPago > 0 ? 48 : 0) + (dia.pagoAoJardas > 0 ? 48 : 0));
+            const alturaResumo = voucher.dias.length > 1 ? 470 : 0;
             const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
             const canvas = document.createElement('canvas');
             canvas.width = largura;
@@ -752,20 +817,21 @@
                 ctx.lineTo(largura - margem - 34, linhaY - 15);
                 ctx.stroke();
 
-                desenharLinha(`Total de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}`, margem + 34, linhaY + 30, 31, '#1f2937', true);
-                desenharLinha(`Cortesias concedidas = ${dia.cortesiasConcedidas}`, margem + 34, linhaY + 78, 31);
-                desenharLinha(`Valor total = ${formatarValorCurto(dia.passagens)}`, margem + 34, linhaY + 126, 31);
-                desenharLinha(`Almoço = ${formatarValorCurto(dia.comissao)}`, margem + 34, linhaY + 174, 31);
+                desenharLinha(`Saldo anterior = ${situacaoSaldoJardas(dia.saldoAnterior).texto}`, margem + 34, linhaY + 30, 28, '#475569');
+                desenharLinha(`Total de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}`, margem + 34, linhaY + 78, 31, '#1f2937', true);
+                desenharLinha(`Cortesias concedidas = ${dia.cortesiasConcedidas}`, margem + 34, linhaY + 126, 31);
+                desenharLinha(`Valor total = ${formatarValorCurto(dia.passagens)}`, margem + 34, linhaY + 174, 31);
+                desenharLinha(`Almoço = ${formatarValorCurto(dia.comissao)}`, margem + 34, linhaY + 222, 31);
                 let calculo = `${formatarValorCurto(dia.passagens)}`;
                 if (dia.valorPago > 0) calculo += ` - ${formatarValorCurto(dia.valorPago)} pago`;
                 calculo += ` - ${formatarValorCurto(dia.comissao)} almoço`;
                 if (dia.valorCortesiasConcedidas > 0) calculo += ` - ${formatarValorCurto(dia.valorCortesiasConcedidas)} cortesias`;
                 if (dia.pagoAoJardas > 0) calculo += ` + ${formatarValorCurto(dia.pagoAoJardas)} pago ao Jardas`;
-                desenharLinha(`Cálculo = ${calculo}`, margem + 34, linhaY + 222, 27, '#475569');
+                desenharLinha(`Cálculo = ${calculo}`, margem + 34, linhaY + 270, 27, '#475569');
 
                 const situacao = situacaoSaldoJardas(dia.saldo);
                 const corSaldo = dia.saldo < -0.009 ? '#b91c1c' : (dia.saldo > 0.009 ? '#6b21a8' : '#15803d');
-                desenharLinha(situacao.texto, margem + 34, linhaY + 278, 38, corSaldo, true);
+                desenharLinha(situacao.texto, margem + 34, linhaY + 326, 38, corSaldo, true);
                 y += alturasDias[indice];
             });
 
@@ -776,12 +842,13 @@
                 ctx.fill();
                 let resumoY = y + 58;
                 desenharLinha('TOTAL DO PERÍODO', margem + 34, resumoY, 38, '#14532d', true);
-                desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 54, 30);
-                desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 102, 30);
-                desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 150, 30);
-                desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 198, 30);
-                if (voucher.valorPago > 0) desenharLinha(`Pagamentos = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 246, 30);
-                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 306, 38, voucher.saldo < 0 ? '#b91c1c' : '#6b21a8', true);
+                desenharLinha(`Saldo anterior = ${situacaoSaldoJardas(voucher.saldoAnterior).texto}`, margem + 34, resumoY + 54, 28, '#475569');
+                desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 102, 30);
+                desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 150, 30);
+                desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 198, 30);
+                desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 246, 30);
+                if (voucher.valorPago > 0) desenharLinha(`Pagamentos = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 294, 30);
+                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 354, 38, voucher.saldo < 0 ? '#b91c1c' : '#6b21a8', true);
             }
 
             const dataUrl = canvas.toDataURL('image/png');
@@ -1618,13 +1685,18 @@
         }
 
         function atualizarCampoSaldoPrestacao() {
-            const tipoSaldo = document.getElementById('saldo-prestacao-tipo').value;
-            const blocoValor = document.getElementById('saldo-prestacao-valor-bloco');
-            const campoValor = document.getElementById('saldo-prestacao-valor');
-            const precisaValor = tipoSaldo === 'jardas-deve' || tipoSaldo === 'nos-devemos';
-            blocoValor.classList.toggle('hidden', !precisaValor);
-            campoValor.disabled = !precisaValor;
-            if (!precisaValor) campoValor.value = '';
+            if (!pagamentoEmEdicao || pagamentoEmEdicao.tipo !== 'agencia') return;
+            const saldoAutomatico = calcularSaldoJardasAte(
+                pagamentoEmEdicao.dataMovimento,
+                pagamentoEmEdicao.prestacaoId
+            ) - pagamentoEmEdicao.valorTotal;
+            const tipoSaldo = saldoAutomatico < -0.009
+                ? 'jardas-deve'
+                : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
+            const valorSaldo = Math.abs(saldoAutomatico);
+            document.getElementById('saldo-prestacao-tipo').value = tipoSaldo;
+            document.getElementById('saldo-prestacao-valor').value = valorSaldo > 0.009 ? valorSaldo.toFixed(2) : '';
+            document.getElementById('saldo-prestacao-automatico').innerText = situacaoSaldoJardas(saldoAutomatico).texto;
         }
 
         function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = null) {
@@ -1674,20 +1746,14 @@
                 ? 'Para pagamento parcial, digite uma parte do saldo. O restante continuará pendente nesta data.'
                 : (valorTotal > 0
                     ? 'Se houver pagamento nosso ao Jardas, o valor desta data será registrado integralmente.'
-                    : 'Feche a prestação e informe abaixo como ficou o saldo entre vocês.');
+                    : 'Feche a prestação. O saldo entre vocês será calculado automaticamente.');
             document.getElementById('pagamento-observacao').value = existente?.observacao || '';
             document.getElementById('pagamento-titulo').innerText = tipo === 'agencia' ? 'Fechar prestação Jardas' : 'Registrar pagamento';
             document.getElementById('pagamento-subtitulo').innerText = tipo === 'agencia'
-                ? 'Registre o acerto e informe obrigatoriamente como ficou o saldo final.'
+                ? 'Registre o acerto. O saldo final será calculado e salvo automaticamente.'
                 : 'Registre o valor pago agora. O restante poderá ser pago em outro dia.';
             const blocoSaldo = document.getElementById('saldo-prestacao-jardas');
             blocoSaldo.classList.toggle('hidden', tipo !== 'agencia');
-            document.getElementById('saldo-prestacao-tipo').value = tipo === 'agencia'
-                ? (existente?.saldoDeclaradoTipo || '')
-                : '';
-            document.getElementById('saldo-prestacao-valor').value = tipo === 'agencia' && Number(existente?.saldoDeclaradoValor) > 0
-                ? Number(existente.saldoDeclaradoValor).toFixed(2)
-                : '';
             atualizarCampoSaldoPrestacao();
             document.getElementById('confirmar-pagamento').innerText = existente
                 ? (tipo === 'agencia' ? '💾 Atualizar prestação' : '💾 Atualizar pagamento')
@@ -1729,14 +1795,14 @@
             let saldoDeclaradoTipo = null;
             let saldoDeclaradoValor = 0;
             if (pagamentoEmEdicao.tipo === 'agencia') {
-                saldoDeclaradoTipo = document.getElementById('saldo-prestacao-tipo').value;
-                if (!saldoDeclaradoTipo) return alert('Informe como ficou o saldo depois da prestação.');
-                if (saldoDeclaradoTipo !== 'zerado') {
-                    saldoDeclaradoValor = Number(String(document.getElementById('saldo-prestacao-valor').value).replace(',', '.'));
-                    if (!Number.isFinite(saldoDeclaradoValor) || saldoDeclaradoValor <= 0) {
-                        return alert('Informe o valor que ficou devendo.');
-                    }
-                }
+                const saldoAutomatico = calcularSaldoJardasAte(
+                    pagamentoEmEdicao.dataMovimento,
+                    pagamentoEmEdicao.prestacaoId
+                ) - valorPagamento;
+                saldoDeclaradoTipo = saldoAutomatico < -0.009
+                    ? 'jardas-deve'
+                    : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
+                saldoDeclaradoValor = Math.abs(saldoAutomatico);
             }
 
             if (!Number.isFinite(valorPagamento) || (pagamentoEmEdicao.tipo === 'catamara' && valorPagamento <= 0) || valorPagamento < 0) {
@@ -2137,7 +2203,22 @@
                         total + obterCortesiasDiariasJardas(data, dia.adultos).quantidade,
                     0);
                     const valorCortesiasConcedidas = cortesiasConcedidas * config.adulto;
-                    const saldoLiquido = d.valorPago + d.comissao + valorCortesiasConcedidas - d.passagens - totalPagoAoJardas;
+                    const saldoAnteriorPeriodo = calcularSaldoJardasAte(deslocarData(dataInicio, -1));
+                    const saldoAnteriorPorData = {};
+                    const saldoAposPorData = {};
+                    let saldoAcumulado = saldoAnteriorPeriodo;
+                    diasDaAgencia
+                        .slice()
+                        .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+                        .forEach(([data, dia]) => {
+                            const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
+                            const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
+                            const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                            saldoAnteriorPorData[data] = saldoAcumulado;
+                            saldoAcumulado += dia.valorPago + dia.comissao + cortesiasDia.valor - dia.passagens - pagoAoJardas;
+                            saldoAposPorData[data] = saldoAcumulado;
+                        });
+                    const saldoLiquido = saldoAcumulado;
                     const situacaoPeriodo = situacaoSaldoJardas(saldoLiquido);
                     const detalhesWhats = diasDaAgencia.map(([data, dia]) => {
                         const guiasDoDia = dia.guias
@@ -2153,7 +2234,7 @@
                         const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
                         const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
                         const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
-                        const saldoDia = dia.valorPago + dia.comissao + cortesiasDia.valor - dia.passagens - pagoAoJardas;
+                        const saldoDia = saldoAposPorData[data];
                         const parcelaPagamento = dia.valorPago > 0 ? ` - ${formatarValorCurto(dia.valorPago)} pago` : '';
                         const parcelaPagoAoJardas = pagoAoJardas > 0 ? ` + ${formatarValorCurto(pagoAoJardas)} pago ao Jardas` : '';
                         return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaPagoAoJardas}\n*${situacaoSaldoJardas(saldoDia).texto}*`;
@@ -2169,7 +2250,7 @@
                             const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
                             const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
                             const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
-                            const saldoDia = dia.valorPago + dia.comissao + cortesiasDia.valor - dia.passagens - pagoAoJardas;
+                            const saldoDia = saldoAposPorData[data];
                             const situacaoDia = situacaoSaldoJardas(saldoDia);
                             const pagamentosGuias = dia.guias
                                 .filter(guia => guia.valorPago > 0)
@@ -2186,7 +2267,7 @@
                                 age,
                                 data,
                                 valorParaRepasse,
-                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">Passagens ${formatarMoeda(dia.passagens)} · Comissão ${formatarMoeda(dia.comissao)} · ${situacaoDia.texto}</div>`
+                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}<div class="mt-1 text-gray-600">Saldo anterior: ${situacaoSaldoJardas(saldoAnteriorPorData[data]).texto}</div><div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">Passagens ${formatarMoeda(dia.passagens)} · Comissão ${formatarMoeda(dia.comissao)} · ${situacaoDia.texto}</div>`
                             );
                         })
                         .join('');
@@ -2204,6 +2285,7 @@
                         comissao: d.comissao,
                         valorPago: d.valorPago,
                         pagoAoJardas: totalPagoAoJardas,
+                        saldoAnterior: saldoAnteriorPeriodo,
                         saldo: saldoLiquido,
                         dias: diasDaAgencia.map(([data, dia]) => {
                             const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
@@ -2220,7 +2302,8 @@
                                 comissao: dia.comissao,
                                 valorPago: dia.valorPago,
                                 pagoAoJardas,
-                                saldo: dia.valorPago + dia.comissao + cortesiasDia.valor - dia.passagens - pagoAoJardas,
+                                saldoAnterior: saldoAnteriorPorData[data],
+                                saldo: saldoAposPorData[data],
                                 guias: dia.guias
                                     .slice()
                                     .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
@@ -2233,6 +2316,10 @@
                             <div class="mb-2">
                                 <div class="font-bold text-purple-800">${escaparHTML(age)}</div>
                                 <div class="text-xs text-gray-500">👨 ${d.adultos} adultos · ${d.criancas} crianças</div>
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
+                                    <span>Saldo anterior</span>
+                                    <strong>${situacaoSaldoJardas(saldoAnteriorPeriodo).texto}</strong>
+                                </div>
                                 <div class="bg-green-50 border border-green-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
                                     <span>Cortesias concedidas no período</span>
                                     <strong class="text-green-800">${cortesiasConcedidas} · -${formatarMoeda(valorCortesiasConcedidas)}</strong>
