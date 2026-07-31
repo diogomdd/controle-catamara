@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle Catamarã</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
@@ -126,12 +126,20 @@
                     <p class="text-xs text-orange-700 mt-1">
                         💰 Comissão Jardas: <span id="comissaoAlmoco" class="font-bold">R$ 0,00</span>
                     </p>
-                    <p class="text-xs text-gray-500 mt-1">Somente a agência Jardas recebe comissão por almoço.</p>
+                    <p class="text-xs text-gray-500 mt-1">Somente a agência Jardas: R$ 5 por adulto pagante.</p>
                 </div>
 
-                <button onclick="salvarGuia()" class="w-full btn-add font-bold py-3 rounded-lg shadow-md text-lg">
-                    ✅ Adicionar Guia
-                </button>
+                <div id="guia-edicao-aviso" class="hidden bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm font-semibold rounded-lg p-2 mb-2">
+                    ✏️ Alterando um lançamento existente
+                </div>
+                <div class="flex gap-2">
+                    <button id="btn-salvar-guia" onclick="salvarGuia()" class="flex-1 btn-add font-bold py-3 rounded-lg shadow-md text-lg">
+                        ✅ Adicionar Guia
+                    </button>
+                    <button id="btn-cancelar-edicao-guia" onclick="cancelarEdicaoGuia()" class="hidden bg-gray-500 text-white font-bold py-3 px-4 rounded-lg shadow-md text-sm">
+                        Cancelar
+                    </button>
+                </div>
             </div>
 
             <div class="card p-4">
@@ -285,9 +293,10 @@
 
             <!-- SEÇÃO COMISSÃO -->
             <div id="secao-comissao" class="card p-4 mb-4">
-                <h3 class="font-bold text-purple-700 mb-2">📋 Comissão Jardas (Almoço)</h3>
-                <p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por pessoa que almoçou · somente Jardas)</p>
-                <p class="text-xs text-gray-500 mb-3">Os pagamentos também podem ser registrados separadamente por data.</p>
+                <h3 class="font-bold text-purple-700 mb-2">📋 Contas Jardas</h3>
+                <p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por adulto pagante)</p>
+                <p class="text-xs text-gray-500 mb-1">Os pagamentos também podem ser registrados separadamente por data.</p>
+                <p class="text-xs text-purple-700 font-semibold mb-3">O relatório do WhatsApp é exclusivo da agência Jardas.</p>
                 <div id="rel-agencias"></div>
             </div>
 
@@ -411,7 +420,7 @@
                 <label class="block text-sm font-semibold mb-1">Criança (R$)</label>
                 <input type="number" id="cfg-crianca" step="0.01" class="w-full border rounded p-2 mb-3">
 
-                <label class="block text-sm font-semibold mb-1">Comissão Jardas por almoço (R$)</label>
+                <label class="block text-sm font-semibold mb-1">Comissão Jardas por adulto (R$)</label>
                 <input type="number" id="cfg-comissao" step="0.01" class="w-full border rounded p-2 mb-3">
 
                 <button onclick="salvarConfig()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow">
@@ -437,11 +446,11 @@
     </main>
 
     <div id="modal-pagamento" class="hidden fixed inset-0 z-50 bg-black bg-opacity-50 p-4 flex items-center justify-center">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-start gap-3 mb-4">
                 <div>
-                    <h2 class="font-bold text-lg text-blue-800">Registrar pagamento</h2>
-                    <p class="text-xs text-gray-500">Registre o valor pago agora. O restante poderá ser pago em outro dia.</p>
+                    <h2 id="pagamento-titulo" class="font-bold text-lg text-blue-800">Registrar pagamento</h2>
+                    <p id="pagamento-subtitulo" class="text-xs text-gray-500">Registre o valor pago agora. O restante poderá ser pago em outro dia.</p>
                 </div>
                 <button type="button" onclick="fecharModalPagamento()" class="text-gray-500 text-2xl leading-none" aria-label="Fechar">×</button>
             </div>
@@ -472,6 +481,21 @@
 
             <label for="pagamento-observacao" class="block text-sm font-semibold mb-1">Como foi pago / observação:</label>
             <textarea id="pagamento-observacao" rows="3" maxlength="300" class="w-full border-2 border-blue-500 rounded p-2 mb-4" placeholder="Ex: Pix, dinheiro, transferência, pago para João..."></textarea>
+
+            <div id="saldo-prestacao-jardas" class="hidden bg-purple-50 border-2 border-purple-200 rounded-lg p-3 mb-4">
+                <label for="saldo-prestacao-tipo" class="block text-sm font-bold text-purple-800 mb-1">Como ficou o saldo depois desta prestação?</label>
+                <select id="saldo-prestacao-tipo" onchange="atualizarCampoSaldoPrestacao()" class="w-full border-2 border-purple-400 rounded p-2 bg-white mb-2">
+                    <option value="">Selecione</option>
+                    <option value="zerado">Saldo zerado</option>
+                    <option value="jardas-deve">Jardas ficou devendo</option>
+                    <option value="nos-devemos">Nós ficamos devendo ao Jardas</option>
+                </select>
+                <div id="saldo-prestacao-valor-bloco" class="hidden">
+                    <label for="saldo-prestacao-valor" class="block text-sm font-semibold mb-1">Valor que ficou devendo:</label>
+                    <input id="saldo-prestacao-valor" type="number" min="0.01" step="0.01" inputmode="decimal" class="w-full border-2 border-purple-400 rounded p-2 text-lg font-bold">
+                </div>
+                <p class="text-xs text-purple-700 mt-2">Essa informação ficará salva no histórico da prestação.</p>
+            </div>
 
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" onclick="fecharModalPagamento()" class="bg-gray-500 text-white font-bold py-2 rounded-lg">Cancelar</button>
@@ -522,6 +546,8 @@
         let dataGlobal = dataLocalHoje();
         let filtroTipoRelatorio = 'ambos';
         let pagamentoEmEdicao = null;
+        let guiaEmEdicaoId = null;
+        let vouchersJardas = {};
         const tabelaJacilene = {
             13: 126.50,
             14: 160.50,
@@ -605,6 +631,13 @@
                 : nomeForma;
         }
 
+        function situacaoSaldoJardas(saldo) {
+            const valor = Number(saldo) || 0;
+            if (valor > 0.009) return { rotulo: 'Devemos ao Jardas', texto: `Devemos ao Jardas: ${formatarMoeda(valor)}` };
+            if (valor < -0.009) return { rotulo: 'Jardas deve', texto: `Jardas deve: ${formatarMoeda(Math.abs(valor))}` };
+            return { rotulo: 'Saldo', texto: 'Saldo zerado' };
+        }
+
         function atualizarCampoValorPagoGuia() {
             const formaPagamento = document.getElementById('formaPagamentoGuia').value;
             const campoValor = document.getElementById('valorPagoGuia');
@@ -616,16 +649,153 @@
             if (aceitaValor && Number(campoValor.value) === 0) campoValor.value = '';
         }
 
-        function calcularComissaoAgencia(nome, quantidadeAlmocos) {
+        function calcularComissaoAgencia(nome, adultos) {
             return ehAgenciaComissionada(nome)
-                ? (Number(quantidadeAlmocos) || 0) * config.comissao
+                ? (Number(adultos) || 0) * config.comissao
                 : 0;
         }
 
         function valorComissaoRegistro(registro) {
-            return ehAgenciaComissionada(registro.agencia)
-                ? Number(registro.comissao) || 0
-                : 0;
+            return calcularComissaoAgencia(registro.agencia, registro.adultos);
+        }
+
+        function formatarValorCurto(valor) {
+            return (Number(valor) || 0).toLocaleString('pt-BR', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
+            });
+        }
+
+        function descricaoGuiaVoucher(guia) {
+            const criancas = guia.criancas > 0 ? ` ${guia.criancas}chd` : '';
+            const pagamento = guia.valorPago > 0
+                ? `  pg ${formatarValorCurto(guia.valorPago)} ${nomeFormaPagamentoGuia(guia.formaPagamento).toLocaleLowerCase('pt-BR')}`
+                : '';
+            return `${guia.nome}  ${guia.adultos} pax${criancas}${pagamento}`;
+        }
+
+        function criarArquivoVoucherJardas(voucher) {
+            const largura = 1080;
+            const margem = 64;
+            const alturaCabecalho = 230;
+            const alturasDias = voucher.dias.map(dia => 390 + (dia.guias.length * 58) + (dia.valorPago > 0 ? 48 : 0) + (dia.pagoAoJardas > 0 ? 48 : 0));
+            const alturaResumo = voucher.dias.length > 1 ? 390 : 0;
+            const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
+            const canvas = document.createElement('canvas');
+            canvas.width = largura;
+            canvas.height = altura;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#eef2f7';
+            ctx.fillRect(0, 0, largura, altura);
+            ctx.fillStyle = '#14532d';
+            ctx.fillRect(0, 0, largura, alturaCabecalho);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 58px Arial, sans-serif';
+            ctx.fillText('CONTAS JARDAS', margem, 92);
+            ctx.font = '34px Arial, sans-serif';
+            ctx.fillText(`${formatarDataRelatorio(voucher.dataInicio)} a ${formatarDataRelatorio(voucher.dataFim)}`, margem, 155);
+            ctx.font = '26px Arial, sans-serif';
+            ctx.fillStyle = '#bbf7d0';
+            ctx.fillText('Controle Catamarã', margem, 202);
+
+            let y = alturaCabecalho + 34;
+            const desenharLinha = (texto, x, posY, tamanho = 32, cor = '#1f2937', negrito = false) => {
+                let tamanhoAjustado = tamanho;
+                const larguraDisponivel = largura - x - margem - 30;
+                ctx.font = `${negrito ? 'bold ' : ''}${tamanhoAjustado}px Arial, sans-serif`;
+                while (ctx.measureText(texto).width > larguraDisponivel && tamanhoAjustado > 20) {
+                    tamanhoAjustado -= 2;
+                    ctx.font = `${negrito ? 'bold ' : ''}${tamanhoAjustado}px Arial, sans-serif`;
+                }
+                ctx.fillStyle = cor;
+                ctx.fillText(texto, x, posY);
+            };
+
+            voucher.dias.forEach((dia, indice) => {
+                const alturaDia = alturasDias[indice] - 26;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.roundRect(margem, y, largura - (margem * 2), alturaDia, 24);
+                ctx.fill();
+
+                let linhaY = y + 62;
+                desenharLinha(formatarDataRelatorio(dia.data), margem + 34, linhaY, 40, '#14532d', true);
+                linhaY += 62;
+                dia.guias.forEach(guia => {
+                    desenharLinha(descricaoGuiaVoucher(guia), margem + 34, linhaY, 31, '#111827');
+                    linhaY += 58;
+                });
+
+                ctx.strokeStyle = '#d1d5db';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(margem + 34, linhaY - 15);
+                ctx.lineTo(largura - margem - 34, linhaY - 15);
+                ctx.stroke();
+
+                desenharLinha(`Total de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}`, margem + 34, linhaY + 30, 31, '#1f2937', true);
+                desenharLinha(`Total de cortesia = ${dia.cortesias}`, margem + 34, linhaY + 78, 31);
+                desenharLinha(`Valor total = ${formatarValorCurto(dia.passagens)}`, margem + 34, linhaY + 126, 31);
+                desenharLinha(`Almoço = ${formatarValorCurto(dia.comissao)}`, margem + 34, linhaY + 174, 31);
+                let calculo = `${formatarValorCurto(dia.passagens)}`;
+                if (dia.valorPago > 0) calculo += ` - ${formatarValorCurto(dia.valorPago)} pago`;
+                calculo += ` - ${formatarValorCurto(dia.comissao)} almoço`;
+                if (dia.pagoAoJardas > 0) calculo += ` + ${formatarValorCurto(dia.pagoAoJardas)} pago ao Jardas`;
+                desenharLinha(`Cálculo = ${calculo}`, margem + 34, linhaY + 222, 27, '#475569');
+
+                const situacao = situacaoSaldoJardas(dia.saldo);
+                const corSaldo = dia.saldo < -0.009 ? '#b91c1c' : (dia.saldo > 0.009 ? '#6b21a8' : '#15803d');
+                desenharLinha(situacao.texto, margem + 34, linhaY + 278, 38, corSaldo, true);
+                y += alturasDias[indice];
+            });
+
+            if (voucher.dias.length > 1) {
+                ctx.fillStyle = '#dcfce7';
+                ctx.beginPath();
+                ctx.roundRect(margem, y, largura - (margem * 2), alturaResumo - 30, 24);
+                ctx.fill();
+                let resumoY = y + 58;
+                desenharLinha('TOTAL DO PERÍODO', margem + 34, resumoY, 38, '#14532d', true);
+                desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 54, 30);
+                desenharLinha(`Total de cortesia = ${voucher.cortesias}`, margem + 34, resumoY + 102, 30);
+                desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 150, 30);
+                desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 198, 30);
+                if (voucher.valorPago > 0) desenharLinha(`Pagamentos = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 246, 30);
+                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 306, 38, voucher.saldo < 0 ? '#b91c1c' : '#6b21a8', true);
+            }
+
+            const dataUrl = canvas.toDataURL('image/png');
+            const binario = atob(dataUrl.split(',')[1]);
+            const bytes = new Uint8Array(binario.length);
+            for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+            return new File([bytes], `voucher-jardas-${voucher.dataInicio}-${voucher.dataFim}.png`, { type: 'image/png' });
+        }
+
+        async function compartilharVoucherJardas(voucherId, botao) {
+            const voucher = vouchersJardas[voucherId];
+            if (!voucher) return alert('Gere o relatório novamente para criar o voucher.');
+            const textoOriginal = botao.innerText;
+            botao.disabled = true;
+            botao.innerText = 'Criando voucher...';
+            try {
+                const arquivo = criarArquivoVoucherJardas(voucher);
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+                    await navigator.share({ files: [arquivo], title: 'Contas Jardas' });
+                } else {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(arquivo);
+                    link.download = arquivo.name;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(link.href), 3000);
+                    alert('A imagem do voucher foi baixada. Agora envie essa imagem pelo WhatsApp.');
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') alert('Não foi possível compartilhar o voucher: ' + error.message);
+            } finally {
+                botao.disabled = false;
+                botao.innerText = textoOriginal;
+            }
         }
 
         function chaveEmbarcacao(nome) {
@@ -1117,7 +1287,7 @@
 
             const totalEmb = ad + cr + bb + cort;
             const faturamento = (ad * config.adulto) + (cr * config.crianca);
-            const comissao = calcularComissaoAgencia(agencia, alm);
+            const comissao = calcularComissaoAgencia(agencia, ad);
 
             document.getElementById('totalEmbarque').innerText = totalEmb;
             document.getElementById('faturamentoEmbarque').innerText = formatarMoeda(faturamento);
@@ -1211,6 +1381,50 @@
             }
         }
 
+        function limparFormularioGuia() {
+            guiaEmEdicaoId = null;
+            document.getElementById('nomeGuia').value = '';
+            document.getElementById('agenciaGuia').value = '';
+            document.getElementById('formaPagamentoGuia').value = '';
+            document.getElementById('valorPagoGuia').value = 0;
+            document.getElementById('adultosGuia').value = 0;
+            document.getElementById('criancasGuia').value = 0;
+            document.getElementById('bebesGuia').value = 0;
+            document.getElementById('cortesiaGuia').value = 0;
+            document.getElementById('almocaramGuia').value = 0;
+            document.getElementById('btn-salvar-guia').innerText = '✅ Adicionar Guia';
+            document.getElementById('btn-cancelar-edicao-guia').classList.add('hidden');
+            document.getElementById('guia-edicao-aviso').classList.add('hidden');
+            atualizarCampoValorPagoGuia();
+            atualizarTotaisForm();
+        }
+
+        function cancelarEdicaoGuia() {
+            limparFormularioGuia();
+        }
+
+        function editarGuia(id) {
+            const registro = registrosGuias.find(item => item.id === id);
+            if (!registro) return alert('Este lançamento não foi encontrado. Atualize a tela e tente novamente.');
+
+            guiaEmEdicaoId = id;
+            document.getElementById('nomeGuia').value = registro.guia || '';
+            document.getElementById('agenciaGuia').value = registro.agencia || '';
+            document.getElementById('formaPagamentoGuia').value = registro.formaPagamento || '';
+            atualizarCampoValorPagoGuia();
+            document.getElementById('valorPagoGuia').value = Number(registro.valorPago) || 0;
+            document.getElementById('adultosGuia').value = Number(registro.adultos) || 0;
+            document.getElementById('criancasGuia').value = Number(registro.criancas) || 0;
+            document.getElementById('bebesGuia').value = Number(registro.bebes) || 0;
+            document.getElementById('cortesiaGuia').value = Number(registro.cortesia) || 0;
+            document.getElementById('almocaramGuia').value = Number(registro.almocaram) || 0;
+            document.getElementById('btn-salvar-guia').innerText = '💾 Salvar alterações';
+            document.getElementById('btn-cancelar-edicao-guia').classList.remove('hidden');
+            document.getElementById('guia-edicao-aviso').classList.remove('hidden');
+            atualizarTotaisForm();
+            document.getElementById('tab-guias').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         function salvarGuia() {
             const data = dataGlobal;
             const guia = document.getElementById('nomeGuia').value.trim();
@@ -1233,32 +1447,35 @@
 
             const totalEmbarque = ad + cr + bb + cort;
             const faturamento = (ad * config.adulto) + (cr * config.crianca);
-            const comissao = calcularComissaoAgencia(agencia, alm);
-
-            const novoRegistro = {
-                data, hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+            const comissao = calcularComissaoAgencia(agencia, ad);
+            const registroExistente = guiaEmEdicaoId
+                ? registrosGuias.find(item => item.id === guiaEmEdicaoId)
+                : null;
+            const dadosRegistro = {
+                data,
+                hora: registroExistente?.hora || new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
                 guia, agencia, formaPagamento, valorPago,
                 adultos: ad, criancas: cr, bebes: bb, cortesia: cort,
                 almocaram: alm,
                 faturamento, comissao,
-                totalPax: totalEmbarque,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                totalPax: totalEmbarque
             };
 
-            db.collection('registrosGuias').add(novoRegistro)
+            const operacao = guiaEmEdicaoId
+                ? db.collection('registrosGuias').doc(guiaEmEdicaoId).update({
+                    ...dadosRegistro,
+                    atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                : db.collection('registrosGuias').add({
+                    ...dadosRegistro,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            const mensagemSucesso = guiaEmEdicaoId ? 'Lançamento alterado!' : 'Guia adicionado!';
+
+            operacao
                 .then(() => {
-                    document.getElementById('nomeGuia').value = '';
-                    document.getElementById('agenciaGuia').value = '';
-                    document.getElementById('formaPagamentoGuia').value = '';
-                    document.getElementById('valorPagoGuia').value = 0;
-                    atualizarCampoValorPagoGuia();
-                    document.getElementById('adultosGuia').value = 0;
-                    document.getElementById('criancasGuia').value = 0;
-                    document.getElementById('bebesGuia').value = 0;
-                    document.getElementById('cortesiaGuia').value = 0;
-                    document.getElementById('almocaramGuia').value = 0;
-                    atualizarTotaisForm();
-                    alert('Guia adicionado!');
+                    limparFormularioGuia();
+                    alert(mensagemSucesso);
                 })
                 .catch((error) => alert('Erro: ' + error.message));
         }
@@ -1352,6 +1569,11 @@
             if (!pagamentoEmEdicao) return;
 
             const elemento = document.getElementById('pagamento-restante');
+            if (pagamentoEmEdicao.tipo === 'agencia' && pagamentoEmEdicao.valorMaximo <= 0) {
+                elemento.className = 'text-xs font-bold text-gray-600 mb-1';
+                elemento.innerText = 'Nenhum pagamento direto será registrado nesta prestação.';
+                return;
+            }
             const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
             const valorPagamento = Number(valorDigitado);
 
@@ -1374,6 +1596,16 @@
             elemento.innerText = restante < 0.01
                 ? '✅ Este pagamento quitará esta data.'
                 : `🟡 Depois deste pagamento ainda faltarão ${formatarMoeda(restante)}.`;
+        }
+
+        function atualizarCampoSaldoPrestacao() {
+            const tipoSaldo = document.getElementById('saldo-prestacao-tipo').value;
+            const blocoValor = document.getElementById('saldo-prestacao-valor-bloco');
+            const campoValor = document.getElementById('saldo-prestacao-valor');
+            const precisaValor = tipoSaldo === 'jardas-deve' || tipoSaldo === 'nos-devemos';
+            blocoValor.classList.toggle('hidden', !precisaValor);
+            campoValor.disabled = !precisaValor;
+            if (!precisaValor) campoValor.value = '';
         }
 
         function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = null) {
@@ -1414,17 +1646,33 @@
             const campoValor = document.getElementById('pagamento-valor-parcela');
             campoValor.value = valorInicial.toFixed(2);
             campoValor.max = valorMaximo.toFixed(2);
+            campoValor.min = tipo === 'agencia' ? '0' : '0.01';
             campoValor.readOnly = tipo !== 'catamara';
             campoValor.classList.toggle('bg-gray-100', tipo !== 'catamara');
             atualizarPreviaPagamento();
 
             document.getElementById('pagamento-dica').innerText = tipo === 'catamara'
                 ? 'Para pagamento parcial, digite uma parte do saldo. O restante continuará pendente nesta data.'
-                : 'O valor referente a esta data será registrado integralmente.';
+                : (valorTotal > 0
+                    ? 'Se houver pagamento nosso ao Jardas, o valor desta data será registrado integralmente.'
+                    : 'Feche a prestação e informe abaixo como ficou o saldo entre vocês.');
             document.getElementById('pagamento-observacao').value = existente?.observacao || '';
+            document.getElementById('pagamento-titulo').innerText = tipo === 'agencia' ? 'Fechar prestação Jardas' : 'Registrar pagamento';
+            document.getElementById('pagamento-subtitulo').innerText = tipo === 'agencia'
+                ? 'Registre o acerto e informe obrigatoriamente como ficou o saldo final.'
+                : 'Registre o valor pago agora. O restante poderá ser pago em outro dia.';
+            const blocoSaldo = document.getElementById('saldo-prestacao-jardas');
+            blocoSaldo.classList.toggle('hidden', tipo !== 'agencia');
+            document.getElementById('saldo-prestacao-tipo').value = tipo === 'agencia'
+                ? (existente?.saldoDeclaradoTipo || '')
+                : '';
+            document.getElementById('saldo-prestacao-valor').value = tipo === 'agencia' && Number(existente?.saldoDeclaradoValor) > 0
+                ? Number(existente.saldoDeclaradoValor).toFixed(2)
+                : '';
+            atualizarCampoSaldoPrestacao();
             document.getElementById('confirmar-pagamento').innerText = existente
-                ? '💾 Atualizar pagamento'
-                : '✅ Registrar pagamento';
+                ? (tipo === 'agencia' ? '💾 Atualizar prestação' : '💾 Atualizar pagamento')
+                : (tipo === 'agencia' ? '✅ Salvar prestação' : '✅ Registrar pagamento');
             document.getElementById('modal-pagamento').classList.remove('hidden');
             setTimeout(() => {
                 if (tipo === 'catamara') {
@@ -1441,6 +1689,10 @@
             document.getElementById('pagamento-valor-parcela').value = '';
             document.getElementById('pagamento-restante').innerText = '';
             document.getElementById('pagamento-observacao').value = '';
+            document.getElementById('saldo-prestacao-tipo').value = '';
+            document.getElementById('saldo-prestacao-valor').value = '';
+            document.getElementById('saldo-prestacao-jardas').classList.add('hidden');
+            atualizarCampoSaldoPrestacao();
             document.getElementById('modal-pagamento').classList.add('hidden');
         }
 
@@ -1455,7 +1707,20 @@
                 ? Number(valorDigitado)
                 : pagamentoEmEdicao.valorTotal;
 
-            if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
+            let saldoDeclaradoTipo = null;
+            let saldoDeclaradoValor = 0;
+            if (pagamentoEmEdicao.tipo === 'agencia') {
+                saldoDeclaradoTipo = document.getElementById('saldo-prestacao-tipo').value;
+                if (!saldoDeclaradoTipo) return alert('Informe como ficou o saldo depois da prestação.');
+                if (saldoDeclaradoTipo !== 'zerado') {
+                    saldoDeclaradoValor = Number(String(document.getElementById('saldo-prestacao-valor').value).replace(',', '.'));
+                    if (!Number.isFinite(saldoDeclaradoValor) || saldoDeclaradoValor <= 0) {
+                        return alert('Informe o valor que ficou devendo.');
+                    }
+                }
+            }
+
+            if (!Number.isFinite(valorPagamento) || (pagamentoEmEdicao.tipo === 'catamara' && valorPagamento <= 0) || valorPagamento < 0) {
                 return alert('Informe um valor de pagamento maior que zero.');
             }
 
@@ -1483,6 +1748,8 @@
                 pagamentoParcial: saldoAposPagamento >= 0.01,
                 statusPagamento: saldoAposPagamento < 0.01 ? 'quitado' : 'parcial',
                 observacao,
+                saldoDeclaradoTipo,
+                saldoDeclaradoValor,
                 dataPrestacao: prestacaoExistente?.dataPrestacao || dataLocalHoje(),
                 horaPrestacao: prestacaoExistente?.horaPrestacao || new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -1498,13 +1765,34 @@
                     const status = saldoAposPagamento < 0.01
                         ? '✅ Esta data ficou quitada.'
                         : `🟡 Pagamento parcial. Ainda faltam ${formatarMoeda(saldoAposPagamento)}.`;
-                    alert(`✅ Pagamento registrado!\n\n${prestacao.nome}\nData do movimento: ${formatarDataRelatorio(prestacao.dataMovimento)}\nValor pago agora: ${formatarMoeda(prestacao.valor)}\n${status}\nObservação: ${observacao}`);
+                    const saldoInformado = saldoDeclaradoTipo === 'zerado'
+                        ? 'Saldo final: zerado'
+                        : (saldoDeclaradoTipo === 'jardas-deve'
+                            ? `Saldo final: Jardas deve ${formatarMoeda(saldoDeclaradoValor)}`
+                            : `Saldo final: devemos ao Jardas ${formatarMoeda(saldoDeclaradoValor)}`);
+                    if (prestacao.tipo === 'agencia') {
+                        alert(`✅ Prestação registrada!\n\n${prestacao.nome}\nData: ${formatarDataRelatorio(prestacao.dataMovimento)}\n${saldoInformado}\nObservação: ${observacao}`);
+                    } else {
+                        alert(`✅ Pagamento registrado!\n\n${prestacao.nome}\nData do movimento: ${formatarDataRelatorio(prestacao.dataMovimento)}\nValor pago agora: ${formatarMoeda(prestacao.valor)}\n${status}\nObservação: ${observacao}`);
+                    }
                 })
                 .catch((error) => alert('Erro: ' + error.message))
                 .finally(() => {
                     botao.disabled = false;
                     botao.innerText = '✅ Registrar pagamento';
                 });
+        }
+
+        function detalheSaldoPrestacao(prestacao) {
+            if (!prestacao || prestacao.tipo !== 'agencia' || !prestacao.saldoDeclaradoTipo) return '';
+            if (prestacao.saldoDeclaradoTipo === 'zerado') {
+                return '<div class="text-xs font-bold text-green-700 mt-1">⚖️ Saldo final: zerado</div>';
+            }
+            const texto = prestacao.saldoDeclaradoTipo === 'jardas-deve'
+                ? 'Jardas ficou devendo'
+                : 'Ficamos devendo ao Jardas';
+            const cor = prestacao.saldoDeclaradoTipo === 'jardas-deve' ? 'text-red-700' : 'text-purple-700';
+            return `<div class="text-xs font-bold ${cor} mt-1">⚖️ ${texto}: ${formatarMoeda(prestacao.saldoDeclaradoValor)}</div>`;
         }
 
         function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes) {
@@ -1515,13 +1803,17 @@
             const classeCartao = resumoPagamento.quitado
                 ? 'bg-green-50 border-green-300'
                 : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200');
-            const status = resumoPagamento.quitado
-                ? `<div class="text-xs text-green-700 font-bold">✅ Quitado · Pago ${formatarMoeda(resumoPagamento.totalPago)}</div>`
-                : (resumoPagamento.parcial
-                    ? `<div class="text-xs text-yellow-800 font-bold">🟡 Pagamento parcial · Pago ${formatarMoeda(resumoPagamento.totalPago)} · Falta ${formatarMoeda(resumoPagamento.saldoRestante)}</div>`
-                    : '<div class="text-xs text-orange-600 font-bold">○ Pagamento pendente</div>');
+            const status = tipo === 'agencia'
+                ? (prestacao
+                    ? '<div class="text-xs text-green-700 font-bold">✅ Prestação registrada</div>'
+                    : '<div class="text-xs text-orange-600 font-bold">○ Prestação ainda não registrada</div>')
+                : (resumoPagamento.quitado
+                    ? `<div class="text-xs text-green-700 font-bold">✅ Quitado · Pago ${formatarMoeda(resumoPagamento.totalPago)}</div>`
+                    : (resumoPagamento.parcial
+                        ? `<div class="text-xs text-yellow-800 font-bold">🟡 Pagamento parcial · Pago ${formatarMoeda(resumoPagamento.totalPago)} · Falta ${formatarMoeda(resumoPagamento.saldoRestante)}</div>`
+                        : '<div class="text-xs text-orange-600 font-bold">○ Pagamento pendente</div>'));
             const observacao = prestacao && tipo !== 'catamara'
-                ? `<div class="text-xs text-gray-600 mt-1">💬 ${escaparHTML(prestacao.observacao || 'Pagamento antigo sem observação')}</div>`
+                ? `<div class="text-xs text-gray-600 mt-1">💬 ${escaparHTML(prestacao.observacao || 'Prestação antiga sem observação')}</div>${detalheSaldoPrestacao(prestacao)}`
                 : '';
             const listaParcelas = tipo === 'catamara' && resumoPagamento.pagamentos.length > 0
                 ? `<div class="mt-2 space-y-1">
@@ -1551,9 +1843,9 @@
                 botao = `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${resumoPagamento.parcial ? 'bg-yellow-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
                             ${resumoPagamento.parcial ? '➕ Registrar outra parte' : '💰 Pagar total ou parcial'}
                          </button>`;
-            } else if (valorNumerico > 0 && tipo !== 'catamara') {
+            } else if (tipo !== 'catamara') {
                 botao = `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${prestacao ? 'bg-blue-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
-                            ${prestacao ? '✏️ Editar pagamento' : '✅ Marcar como pago'}
+                            ${prestacao ? '✏️ Editar prestação' : '✅ Fechar prestação'}
                          </button>`;
             }
 
@@ -1575,6 +1867,9 @@
         function excluirGuia(id) {
             if (!confirm('Excluir este guia?')) return;
             db.collection('registrosGuias').doc(id).delete()
+                .then(() => {
+                    if (guiaEmEdicaoId === id) limparFormularioGuia();
+                })
                 .catch((error) => alert('Erro: ' + error.message));
         }
 
@@ -1585,6 +1880,7 @@
         }
 
         function atualizarTela() {
+            vouchersJardas = {};
             const guiadosFiltrados = ordenarPorDataHora(
                 registrosGuias.filter(e => e.data === dataGlobal)
             );
@@ -1618,9 +1914,15 @@
                     
                     listaGuias.innerHTML += `
                         <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-green-500">
-                            <div class="flex justify-between font-bold">
-                                <span>${escaparHTML(e.guia)}</span>
-                                <span class="text-gray-500 text-xs">${e.data} ${e.hora}</span>
+                            <div class="flex justify-between items-start gap-2 mb-1">
+                                <div>
+                                    <div class="font-bold">${escaparHTML(e.guia)}</div>
+                                    <div class="text-gray-500 text-xs">${e.data} ${e.hora}</div>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button type="button" onclick="editarGuia('${e.id}')" class="bg-blue-600 text-white text-xs font-bold py-1 px-2 rounded">✏️ Alterar</button>
+                                    <button type="button" onclick="excluirGuia('${e.id}')" class="btn-delete text-xs font-bold py-1 px-2 rounded">🗑️ Excluir</button>
+                                </div>
                             </div>
                             <div class="text-xs text-gray-600 mb-1">${escaparHTML(e.agencia)}</div>
                             <div class="flex justify-between text-xs mb-1">
@@ -1632,7 +1934,6 @@
                                 <span>🍽️ ${e.almocaram || 0}</span>
                                 <span class="font-bold text-orange-600">${formatarMoeda(comissaoRegistro)}</span>
                             </div>
-                            <button onclick="excluirGuia('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
                         </div>`;
                 });
             }
@@ -1746,12 +2047,16 @@
                     .filter(e => ehAgenciaComissionada(e.agencia))
                     .forEach(e => {
                     const agenciaComissionada = 'Jardas';
-                    if (!relAge[agenciaComissionada]) relAge[agenciaComissionada] = { pax: 0, comissao: 0, almocaram: 0, dias: {} };
+                    if (!relAge[agenciaComissionada]) relAge[agenciaComissionada] = { pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, dias: {} };
                     if (!relAge[agenciaComissionada].dias[e.data]) {
-                        relAge[agenciaComissionada].dias[e.data] = { pax: 0, comissao: 0, almocaram: 0, guias: [] };
+                        relAge[agenciaComissionada].dias[e.data] = { pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, guias: [] };
                     }
 
                     const pax = Number(e.totalPax) || 0;
+                    const adultos = Number(e.adultos) || 0;
+                    const criancas = Number(e.criancas) || 0;
+                    const cortesias = Number(e.cortesia) || 0;
+                    const passagens = (adultos * config.adulto) + (criancas * config.crianca);
                     const comissao = valorComissaoRegistro(e);
                     const almocaram = Number(e.almocaram) || 0;
                     const valorPago = Number(e.valorPago) || 0;
@@ -1763,17 +2068,31 @@
                         item.formaPagamento === formaPagamento
                     );
                     if (!dadosGuia) {
-                        dadosGuia = { nome: nomeGuia, formaPagamento, pax: 0, comissao: 0, almocaram: 0, valorPago: 0 };
+                        dadosGuia = { nome: nomeGuia, formaPagamento, pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0 };
                         diaAgencia.guias.push(dadosGuia);
                     }
 
                     relAge[agenciaComissionada].pax += pax;
+                    relAge[agenciaComissionada].adultos += adultos;
+                    relAge[agenciaComissionada].criancas += criancas;
+                    relAge[agenciaComissionada].cortesias += cortesias;
+                    relAge[agenciaComissionada].passagens += passagens;
                     relAge[agenciaComissionada].comissao += comissao;
                     relAge[agenciaComissionada].almocaram += almocaram;
+                    relAge[agenciaComissionada].valorPago += valorPago;
                     diaAgencia.pax += pax;
+                    diaAgencia.adultos += adultos;
+                    diaAgencia.criancas += criancas;
+                    diaAgencia.cortesias += cortesias;
+                    diaAgencia.passagens += passagens;
                     diaAgencia.comissao += comissao;
                     diaAgencia.almocaram += almocaram;
+                    diaAgencia.valorPago += valorPago;
                     dadosGuia.pax += pax;
+                    dadosGuia.adultos += adultos;
+                    dadosGuia.criancas += criancas;
+                    dadosGuia.cortesias += cortesias;
+                    dadosGuia.passagens += passagens;
                     dadosGuia.comissao += comissao;
                     dadosGuia.almocaram += almocaram;
                     dadosGuia.valorPago += valorPago;
@@ -1790,58 +2109,119 @@
                     .map(([age, d]) => {
                     const diasDaAgencia = Object.entries(d.dias)
                         .sort(([dataA], [dataB]) => dataB.localeCompare(dataA));
-                    const saldoDevedor = diasDaAgencia.reduce((saldo, [data, dia]) =>
-                        saldo + obterResumoPagamentoDiario('agencia', age, data, dia.comissao).saldoRestante,
-                    0);
+                    const totalPagoAoJardas = diasDaAgencia.reduce((total, [data, dia]) => {
+                        const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago - dia.passagens);
+                        return total + obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                    }, 0);
+                    const saldoLiquido = d.valorPago + d.comissao - d.passagens - totalPagoAoJardas;
+                    const situacaoPeriodo = situacaoSaldoJardas(saldoLiquido);
                     const detalhesWhats = diasDaAgencia.map(([data, dia]) => {
                         const guiasDoDia = dia.guias
                             .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
-                            .map(guia =>
-                                `• ${guia.nome}: ${guia.pax} passageiros · ${guia.almocaram} almoços · ${formatarMoeda(guia.comissao)}\n  Pagamento: ${detalharPagamentoGuia(guia.formaPagamento, guia.valorPago)}`
-                            )
+                            .map(guia => {
+                                const criancas = guia.criancas > 0 ? ` ${guia.criancas}chd` : '';
+                                const pagamento = guia.valorPago > 0
+                                    ? ` pg ${formatarValorCurto(guia.valorPago)} ${nomeFormaPagamentoGuia(guia.formaPagamento).toLocaleLowerCase('pt-BR')}`
+                                    : '';
+                                return `${guia.nome} ${guia.adultos} pax${criancas}${pagamento}`;
+                            })
                             .join('\n');
-                        const resumoPagamento = obterResumoPagamentoDiario('agencia', age, data, dia.comissao);
-                        const situacao = resumoPagamento.saldoRestante > 0
-                            ? `Saldo do dia: ${formatarMoeda(resumoPagamento.saldoRestante)}`
-                            : 'Situação: pago';
-                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\nSubtotal do dia: ${dia.pax} passageiros · ${dia.almocaram} almoços · ${formatarMoeda(dia.comissao)}\n${situacao}`;
+                        const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago - dia.passagens);
+                        const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                        const saldoDia = dia.valorPago + dia.comissao - dia.passagens - pagoAoJardas;
+                        const parcelaPagamento = dia.valorPago > 0 ? ` - ${formatarValorCurto(dia.valorPago)} pago` : '';
+                        const parcelaPagoAoJardas = pagoAoJardas > 0 ? ` + ${formatarValorCurto(pagoAoJardas)} pago ao Jardas` : '';
+                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nTotal de cortesia = ${dia.cortesias}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço${parcelaPagoAoJardas}\n*${situacaoSaldoJardas(saldoDia).texto}*`;
                     }).join('\n\n');
-                    const textoWhats = `*Prestação de contas ${age}*\nPeríodo: ${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n\n${detalhesWhats}\n\n*Total do período: ${formatarMoeda(d.comissao)}*\n*Saldo devedor: ${formatarMoeda(saldoDevedor)}*`;
+                    const pagamentosPeriodo = d.valorPago > 0 ? `\nPagamentos = ${formatarValorCurto(d.valorPago)}` : '';
+                    const pagoAoJardasPeriodo = totalPagoAoJardas > 0 ? `\nPago ao Jardas = ${formatarValorCurto(totalPagoAoJardas)}` : '';
+                    const resumoPeriodo = diasDaAgencia.length > 1
+                        ? `\n\n*TOTAL DO PERÍODO*\nTotal de pax = ${d.adultos}${d.criancas > 0 ? `+${d.criancas}chd` : ''}\nTotal de cortesia = ${d.cortesias}\nValor total = ${formatarValorCurto(d.passagens)}\nAlmoço = ${formatarValorCurto(d.comissao)}${pagamentosPeriodo}${pagoAoJardasPeriodo}\n*${situacaoPeriodo.texto}*`
+                        : '';
+                    const textoWhats = `*CONTAS JARDAS*\n${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n\n${detalhesWhats}${resumoPeriodo}`;
                     const linhasDiarias = diasDaAgencia
                         .map(([data, dia]) => {
+                            const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago - dia.passagens);
+                            const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                            const saldoDia = dia.valorPago + dia.comissao - dia.passagens - pagoAoJardas;
+                            const situacaoDia = situacaoSaldoJardas(saldoDia);
                             const pagamentosGuias = dia.guias
+                                .filter(guia => guia.valorPago > 0)
                                 .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
                                 .map(guia =>
                                     `${escaparHTML(guia.nome)}: ${escaparHTML(detalharPagamentoGuia(guia.formaPagamento, guia.valorPago))}`
                                 )
                                 .join(' · ');
+                            const detalhePagamento = pagamentosGuias
+                                ? `<div class="mt-1 text-blue-700">💳 ${pagamentosGuias}</div>`
+                                : '';
                             return renderizarLinhaPagamentoDiario(
                                 'agencia',
                                 age,
                                 data,
-                                dia.comissao,
-                                `🚤 ${dia.pax} passageiros · 🍽️ ${dia.almocaram} almoços<div class="mt-1 text-blue-700">💳 ${pagamentosGuias}</div>`
+                                valorParaRepasse,
+                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças · ${dia.cortesias} cortesias${detalhePagamento}<div class="mt-1 text-purple-700">Passagens ${formatarMoeda(dia.passagens)} · Comissão ${formatarMoeda(dia.comissao)} · ${situacaoDia.texto}</div>`
                             );
                         })
                         .join('');
+
+                    const voucherId = `jardas-${dataInicio}-${dataFim}`;
+                    vouchersJardas[voucherId] = {
+                        dataInicio,
+                        dataFim,
+                        adultos: d.adultos,
+                        criancas: d.criancas,
+                        cortesias: d.cortesias,
+                        passagens: d.passagens,
+                        comissao: d.comissao,
+                        valorPago: d.valorPago,
+                        pagoAoJardas: totalPagoAoJardas,
+                        saldo: saldoLiquido,
+                        dias: diasDaAgencia.map(([data, dia]) => {
+                            const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago - dia.passagens);
+                            const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                            return {
+                                data,
+                                adultos: dia.adultos,
+                                criancas: dia.criancas,
+                                cortesias: dia.cortesias,
+                                passagens: dia.passagens,
+                                comissao: dia.comissao,
+                                valorPago: dia.valorPago,
+                                pagoAoJardas,
+                                saldo: dia.valorPago + dia.comissao - dia.passagens - pagoAoJardas,
+                                guias: dia.guias
+                                    .slice()
+                                    .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
+                            };
+                        })
+                    };
 
                     return `
                         <div class="border-2 border-purple-200 rounded-xl p-3 mb-4">
                             <div class="mb-2">
                                 <div class="font-bold text-purple-800">${escaparHTML(age)}</div>
-                                <div class="text-xs text-gray-500">🚤 ${d.pax} passageiros · 🍽️ ${d.almocaram} almoços</div>
-                                <div class="grid grid-cols-2 gap-2 mt-3">
+                                <div class="text-xs text-gray-500">👨 ${d.adultos} adultos · ${d.criancas} crianças · ${d.cortesias} cortesias</div>
+                                <div class="grid grid-cols-2 gap-2 mt-2">
                                     <div class="bg-purple-50 rounded-lg p-2">
-                                        <div class="text-xs text-gray-500">Total do período</div>
+                                        <div class="text-xs text-gray-500">Valor das passagens</div>
+                                        <div class="font-bold text-red-600">${formatarMoeda(d.passagens)}</div>
+                                    </div>
+                                    <div class="bg-blue-50 rounded-lg p-2 text-right">
+                                        <div class="text-xs text-gray-500">Comissão Jardas</div>
                                         <div class="font-bold text-purple-700">${formatarMoeda(d.comissao)}</div>
                                     </div>
-                                    <div class="${saldoDevedor > 0 ? 'bg-red-50' : 'bg-green-50'} rounded-lg p-2 text-right">
-                                        <div class="text-xs text-gray-500">Saldo devedor</div>
-                                        <div class="font-bold ${saldoDevedor > 0 ? 'text-red-600' : 'text-green-700'}">${formatarMoeda(saldoDevedor)}</div>
+                                    <div class="${saldoLiquido === 0 ? 'bg-green-50' : (saldoLiquido > 0 ? 'bg-purple-50' : 'bg-red-50')} rounded-lg p-2">
+                                        <div class="text-xs text-gray-500">${situacaoPeriodo.rotulo}</div>
+                                        <div class="font-bold ${saldoLiquido === 0 ? 'text-green-700' : (saldoLiquido > 0 ? 'text-purple-700' : 'text-red-600')}">${formatarMoeda(Math.abs(saldoLiquido))}</div>
+                                    </div>
+                                    <div class="${totalPagoAoJardas > 0 ? 'bg-green-50' : 'bg-gray-50'} rounded-lg p-2 text-right">
+                                        <div class="text-xs text-gray-500">Já pago ao Jardas</div>
+                                        <div class="font-bold text-green-700">${formatarMoeda(totalPagoAoJardas)}</div>
                                     </div>
                                 </div>
                             </div>
-                            <a href="https://wa.me/?text=${encodeURIComponent(textoWhats)}" target="_blank" class="block w-full bg-green-500 text-white text-xs font-bold py-2 rounded text-center mb-3">WhatsApp</a>
+                            <button type="button" onclick="compartilharVoucherJardas('${voucherId}', this)" class="block w-full bg-green-600 text-white text-sm font-bold py-3 rounded-lg text-center mb-3">📤 Compartilhar voucher no WhatsApp</button>
                             <div class="space-y-2">${linhasDiarias}</div>
                         </div>`;
                 }).join('');
@@ -1942,6 +2322,7 @@
                         ${detalheParcelaPrestacao(p)}
                         <div class="text-xs text-gray-500">Pago em ${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</div>
                         ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
+                        ${detalheSaldoPrestacao(p)}
                     </div>
                 `).join('');
             }
@@ -1970,6 +2351,7 @@
                         <div class="text-xs text-gray-600">${descricaoMovimentoPrestacao(p)}</div>
                         <div class="text-xs text-gray-500">Pago em ${formatarDataHistorico(p.dataPrestacao)} ${escaparHTML(p.horaPrestacao || '')}</div>
                         ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
+                        ${detalheSaldoPrestacao(p)}
                     </div>
                 `).join('');
             }
@@ -1996,6 +2378,7 @@
                             ${formatarMoeda(p.valor)}
                         </div>
                         ${p.observacao ? `<div class="text-xs text-gray-700 mt-1">💬 ${escaparHTML(p.observacao)}</div>` : ''}
+                        ${detalheSaldoPrestacao(p)}
                     </div>
                 `).join('');
             }
