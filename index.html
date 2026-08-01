@@ -694,6 +694,15 @@
                 .reduce((dataMaisRecente, p) => p.dataMovimento > dataMaisRecente ? p.dataMovimento : dataMaisRecente, fechamentoInicialJardas);
         }
 
+        function ehDataFechamentoJardas(data) {
+            return data === fechamentoInicialJardas || prestacoes.some(p =>
+                p.tipo === 'agencia' &&
+                ehAgenciaComissionada(p.nome) &&
+                p.fechamentoGeral &&
+                p.dataMovimento === data
+            );
+        }
+
         function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
             if (!dataFim || dataFim < inicioCortesiasAutomaticasJardas) return 0;
 
@@ -851,7 +860,14 @@
                 ctx.lineTo(largura - margem - 34, linhaY - 15);
                 ctx.stroke();
 
-                desenharLinha(`Saldo anterior = ${situacaoSaldoJardas(dia.saldoAnterior).texto}`, margem + 34, linhaY + 30, 28, '#475569');
+                desenharLinha(
+                    dia.fechamentoNoDia ? 'Fechamento realizado = contas zeradas' : `Saldo anterior = ${situacaoSaldoJardas(dia.saldoAnterior).texto}`,
+                    margem + 34,
+                    linhaY + 30,
+                    28,
+                    dia.fechamentoNoDia ? '#15803d' : '#475569',
+                    dia.fechamentoNoDia
+                );
                 desenharLinha(`Total de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}`, margem + 34, linhaY + 78, 31, '#1f2937', true);
                 desenharLinha(`Cortesias concedidas = ${dia.cortesiasConcedidas}`, margem + 34, linhaY + 126, 31);
                 desenharLinha(`Valor total = ${formatarValorCurto(dia.passagens)}`, margem + 34, linhaY + 174, 31);
@@ -1971,9 +1987,11 @@
                 ? 'bg-green-50 border-green-300'
                 : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200');
             const status = tipo === 'agencia'
-                ? (resumoPagamento.pagamentos.length > 0
+                ? (ehDataFechamentoJardas(dataMovimento)
+                    ? '<div class="text-xs text-green-700 font-bold">⚖️ Contas zeradas nesta data</div>'
+                    : (resumoPagamento.pagamentos.length > 0
                     ? `<div class="text-xs text-green-700 font-bold">✅ ${resumoPagamento.pagamentos.length} acerto(s) registrado(s) nesta data</div>`
-                    : '<div class="text-xs text-orange-600 font-bold">○ Nenhum pagamento registrado nesta data</div>')
+                    : '<div class="text-xs text-orange-600 font-bold">○ Nenhum pagamento registrado nesta data</div>'))
                 : (resumoPagamento.quitado
                     ? `<div class="text-xs text-green-700 font-bold">✅ Quitado · Pago ${formatarMoeda(resumoPagamento.totalPago)}</div>`
                     : (resumoPagamento.parcial
@@ -2028,7 +2046,7 @@
                             <div class="font-bold text-sm">${formatarDataRelatorio(dataMovimento)}</div>
                             <div class="text-xs text-gray-500">${detalhes}</div>
                         </div>
-                        <div class="font-bold text-green-700">${formatarMoeda(valorNumerico)}</div>
+                        ${tipo === 'agencia' ? '' : `<div class="font-bold text-green-700">${formatarMoeda(valorNumerico)}</div>`}
                     </div>
                     <div class="mt-2">${status}${observacao}</div>
                     ${listaParcelas}
@@ -2290,14 +2308,18 @@
                         total + obterCortesiasDiariasJardas(data, dia.adultos).quantidade,
                     0);
                     const valorCortesiasConcedidas = cortesiasConcedidas * config.adulto;
-                    const saldoAnteriorPeriodo = calcularSaldoJardasAte(deslocarData(dataInicio, -1));
+                    const saldoAnteriorPeriodo = ehDataFechamentoJardas(dataInicio)
+                        ? 0
+                        : calcularSaldoJardasAte(deslocarData(dataInicio, -1));
                     const saldoAnteriorPorData = {};
                     const saldoAposPorData = {};
                     diasDaAgencia
                         .slice()
                         .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
                         .forEach(([data]) => {
-                            saldoAnteriorPorData[data] = calcularSaldoJardasAte(deslocarData(data, -1));
+                            saldoAnteriorPorData[data] = ehDataFechamentoJardas(data)
+                                ? 0
+                                : calcularSaldoJardasAte(deslocarData(data, -1));
                             saldoAposPorData[data] = calcularSaldoJardasAte(data);
                         });
                     const saldoLiquido = calcularSaldoJardasAte(dataFim);
@@ -2316,9 +2338,11 @@
                         const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
                         const acertosDia = resumoPagamentosJardas(obterPrestacoesDiarias('agencia', age, data));
                         const saldoDia = saldoAposPorData[data];
+                        const fechamentoNoDia = ehDataFechamentoJardas(data);
                         const parcelaPagamento = dia.valorPago > 0 ? ` - ${formatarValorCurto(dia.valorPago)} pago` : '';
                         const parcelaAbatida = acertosDia.valorAbatido > 0 ? ` - ${formatarValorCurto(acertosDia.valorAbatido)} pagamento abatido` : '';
-                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaAbatida}\n*${situacaoSaldoJardas(saldoDia).texto}*`;
+                        const fechamento = fechamentoNoDia ? '\n*Fechamento realizado: contas zeradas*' : '';
+                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaAbatida}${fechamento}\n*${situacaoSaldoJardas(saldoDia).texto}*`;
                     }).join('\n\n');
                     const pagamentosPeriodo = d.valorPago > 0 ? `\nPagamentos = ${formatarValorCurto(d.valorPago)}` : '';
                     const pagamentosAbatidosPeriodo = totalAbatidoJardas > 0 ? `\nPagamentos abatidos = ${formatarValorCurto(totalAbatidoJardas)}` : '';
@@ -2332,6 +2356,7 @@
                             const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
                             const saldoDia = saldoAposPorData[data];
                             const situacaoDia = situacaoSaldoJardas(saldoDia);
+                            const fechamentoNoDia = ehDataFechamentoJardas(data);
                             const pagamentosGuias = dia.guias
                                 .filter(guia => guia.valorPago > 0)
                                 .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
@@ -2347,7 +2372,7 @@
                                 age,
                                 data,
                                 valorParaRepasse,
-                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}<div class="mt-1 text-gray-600">Saldo anterior: ${situacaoSaldoJardas(saldoAnteriorPorData[data]).texto}</div><div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">Passagens ${formatarMoeda(dia.passagens)} · Comissão ${formatarMoeda(dia.comissao)} · ${situacaoDia.texto}</div>`
+                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}${fechamentoNoDia ? '<div class="mt-1 text-green-700 font-bold">⚖️ Fechamento realizado: contas zeradas nesta data</div>' : `<div class="mt-1 text-gray-600">Saldo anterior: ${situacaoSaldoJardas(saldoAnteriorPorData[data]).texto}</div>`}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">Passagens ${formatarMoeda(dia.passagens)} · Comissão ${formatarMoeda(dia.comissao)} · ${situacaoDia.texto}</div>`
                             );
                         })
                         .join('');
@@ -2384,6 +2409,7 @@
                                 valorAbatido: acertosDia.valorAbatido,
                                 saldoAnterior: saldoAnteriorPorData[data],
                                 saldo: saldoAposPorData[data],
+                                fechamentoNoDia: ehDataFechamentoJardas(data),
                                 guias: dia.guias
                                     .slice()
                                     .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
