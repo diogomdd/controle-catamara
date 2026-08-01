@@ -460,7 +460,7 @@
                 <div class="text-xs text-gray-600 mt-1">Movimento: <span id="pagamento-data"></span></div>
                 <div class="grid grid-cols-3 gap-2 mt-3 text-center">
                     <div class="bg-white rounded p-2">
-                        <div class="text-xs text-gray-500">Total do dia</div>
+                        <div class="text-xs text-gray-500" id="pagamento-total-rotulo">Total do dia</div>
                         <div class="font-bold text-blue-800" id="pagamento-total"></div>
                     </div>
                     <div class="bg-white rounded p-2">
@@ -468,7 +468,7 @@
                         <div class="font-bold text-green-700" id="pagamento-ja-pago"></div>
                     </div>
                     <div class="bg-white rounded p-2">
-                        <div class="text-xs text-gray-500">Disponível</div>
+                        <div class="text-xs text-gray-500" id="pagamento-saldo-rotulo">Disponível</div>
                         <div class="font-bold text-orange-700" id="pagamento-saldo"></div>
                     </div>
                 </div>
@@ -550,6 +550,7 @@
         let guiaEmEdicaoId = null;
         let vouchersJardas = {};
         const inicioCortesiasAutomaticasJardas = '2026-07-21';
+        const fechamentoInicialJardas = '2026-07-26';
         const tabelaJacilene = {
             13: 126.50,
             14: 160.50,
@@ -671,6 +672,28 @@
             return 0;
         }
 
+        function valorAssinadoPagamentoJardas(prestacao) {
+            const valor = Math.max(0, Number(prestacao?.valor) || 0);
+            if (prestacao?.fechamentoGeral || valor <= 0) return 0;
+            return valor;
+        }
+
+        function resumoPagamentosJardas(pagamentos) {
+            return pagamentos.reduce((resumo, pagamento) => {
+                const valor = Math.max(0, Number(pagamento?.valor) || 0);
+                if (pagamento?.fechamentoGeral || valor <= 0) return resumo;
+                resumo.valorAbatido += valor;
+                resumo.saldoAssinado += valorAssinadoPagamentoJardas(pagamento);
+                return resumo;
+            }, { valorAbatido: 0, saldoAssinado: 0 });
+        }
+
+        function dataUltimoFechamentoJardas() {
+            return prestacoes
+                .filter(p => p.tipo === 'agencia' && ehAgenciaComissionada(p.nome) && p.fechamentoGeral && p.dataMovimento)
+                .reduce((dataMaisRecente, p) => p.dataMovimento > dataMaisRecente ? p.dataMovimento : dataMaisRecente, fechamentoInicialJardas);
+        }
+
         function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
             if (!dataFim || dataFim < inicioCortesiasAutomaticasJardas) return 0;
 
@@ -682,9 +705,20 @@
                     p.dataMovimento &&
                     p.dataMovimento <= dataFim
                 );
-            const ultimoFechamento = prestacoesJardas
-                .filter(p => p.saldoDeclaradoTipo)
+            const fechamentoRegistrado = prestacoesJardas
+                .filter(p => p.fechamentoGeral)
                 .sort((a, b) => `${b.dataMovimento} ${momentoPrestacao(b)}`.localeCompare(`${a.dataMovimento} ${momentoPrestacao(a)}`))[0];
+            const fechamentoConhecido = dataFim >= fechamentoInicialJardas
+                ? {
+                    dataMovimento: fechamentoInicialJardas,
+                    saldoDeclaradoTipo: 'zerado',
+                    saldoDeclaradoValor: 0,
+                    fechamentoGeral: true
+                }
+                : null;
+            const ultimoFechamento = fechamentoRegistrado && (!fechamentoConhecido || fechamentoRegistrado.dataMovimento > fechamentoConhecido.dataMovimento)
+                ? fechamentoRegistrado
+                : fechamentoConhecido;
 
             let saldo = ultimoFechamento ? saldoAssinadoPrestacao(ultimoFechamento) : 0;
             const dataInicio = ultimoFechamento
@@ -715,10 +749,10 @@
                     saldo += dia.valorPago + comissao + cortesias.valor - passagens;
                 });
 
-            const pagamentosNossos = prestacoesJardas
+            const movimentoPagamentos = prestacoesJardas
                 .filter(p => p.dataMovimento >= dataInicio && p.dataMovimento <= dataFim)
-                .reduce((total, p) => total + Math.max(0, Number(p.valor) || 0), 0);
-            return saldo - pagamentosNossos;
+                .reduce((total, p) => total + valorAssinadoPagamentoJardas(p), 0);
+            return saldo + movimentoPagamentos;
         }
 
         function atualizarCampoValorPagoGuia() {
@@ -761,7 +795,7 @@
             const largura = 1080;
             const margem = 64;
             const alturaCabecalho = 230;
-            const alturasDias = voucher.dias.map(dia => 438 + (dia.guias.length * 58) + (dia.valorPago > 0 ? 48 : 0) + (dia.pagoAoJardas > 0 ? 48 : 0));
+            const alturasDias = voucher.dias.map(dia => 438 + (dia.guias.length * 58));
             const alturaResumo = voucher.dias.length > 1 ? 470 : 0;
             const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
             const canvas = document.createElement('canvas');
@@ -826,7 +860,7 @@
                 if (dia.valorPago > 0) calculo += ` - ${formatarValorCurto(dia.valorPago)} pago`;
                 calculo += ` - ${formatarValorCurto(dia.comissao)} almoço`;
                 if (dia.valorCortesiasConcedidas > 0) calculo += ` - ${formatarValorCurto(dia.valorCortesiasConcedidas)} cortesias`;
-                if (dia.pagoAoJardas > 0) calculo += ` + ${formatarValorCurto(dia.pagoAoJardas)} pago ao Jardas`;
+                if (dia.valorAbatido > 0) calculo += ` - ${formatarValorCurto(dia.valorAbatido)} pagamento abatido`;
                 desenharLinha(`Cálculo = ${calculo}`, margem + 34, linhaY + 270, 27, '#475569');
 
                 const situacao = situacaoSaldoJardas(dia.saldo);
@@ -1655,17 +1689,19 @@
             if (!pagamentoEmEdicao) return;
 
             const elemento = document.getElementById('pagamento-restante');
-            if (pagamentoEmEdicao.tipo === 'agencia' && pagamentoEmEdicao.valorMaximo <= 0) {
-                elemento.className = 'text-xs font-bold text-gray-600 mb-1';
-                elemento.innerText = 'Nenhum pagamento direto será registrado nesta prestação.';
-                return;
-            }
             const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
             const valorPagamento = Number(valorDigitado);
 
             if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
                 elemento.className = 'text-xs font-bold text-red-600 mb-1';
                 elemento.innerText = 'Informe um valor maior que zero.';
+                return;
+            }
+
+            if (pagamentoEmEdicao.tipo === 'agencia') {
+                elemento.className = 'text-xs font-bold text-purple-700 mb-1';
+                elemento.innerText = 'Este valor será abatido do saldo acumulado, inclusive de datas anteriores.';
+                atualizarCampoSaldoPrestacao();
                 return;
             }
 
@@ -1686,10 +1722,11 @@
 
         function atualizarCampoSaldoPrestacao() {
             if (!pagamentoEmEdicao || pagamentoEmEdicao.tipo !== 'agencia') return;
+            const valorDigitado = Number(String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.')) || 0;
             const saldoAutomatico = calcularSaldoJardasAte(
                 pagamentoEmEdicao.dataMovimento,
                 pagamentoEmEdicao.prestacaoId
-            ) - pagamentoEmEdicao.valorTotal;
+            ) + valorDigitado;
             const tipoSaldo = saldoAutomatico < -0.009
                 ? 'jardas-deve'
                 : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
@@ -1697,24 +1734,28 @@
             document.getElementById('saldo-prestacao-tipo').value = tipoSaldo;
             document.getElementById('saldo-prestacao-valor').value = valorSaldo > 0.009 ? valorSaldo.toFixed(2) : '';
             document.getElementById('saldo-prestacao-automatico').innerText = situacaoSaldoJardas(saldoAutomatico).texto;
+            document.getElementById('pagamento-saldo').innerText = situacaoSaldoJardas(saldoAutomatico).texto;
         }
 
         function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = null) {
+            if (tipo === 'agencia' && !prestacaoId && dataMovimento <= dataUltimoFechamentoJardas()) {
+                return alert(`As contas já foram fechadas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}. Registre o pagamento em uma data posterior.`);
+            }
             const nomePrestacao = tipo === 'catamara' ? nomeCanonicoEmbarcacao(nome) : nome;
             const pagamentos = obterPrestacoesDiarias(tipo, nomePrestacao, dataMovimento);
             const existente = prestacaoId
                 ? pagamentos.find(p => p.id === prestacaoId)
-                : (tipo === 'catamara' ? null : pagamentos[0]);
+                : null;
             const valorTotal = Number(valor) || 0;
             const valorPagoOutros = pagamentos.reduce((total, pagamento) =>
                 pagamento.id === existente?.id
                     ? total
                     : total + Math.max(0, Number(pagamento.valor) || 0),
             0);
-            const valorMaximo = Math.max(0, valorTotal - valorPagoOutros);
+            const valorMaximo = tipo === 'agencia' ? Number.POSITIVE_INFINITY : Math.max(0, valorTotal - valorPagoOutros);
             const valorInicial = existente
-                ? Math.min(Math.max(0, Number(existente.valor) || 0), valorMaximo)
-                : valorMaximo;
+                ? Math.max(0, Number(existente.valor) || 0)
+                : (tipo === 'agencia' ? 0 : valorMaximo);
 
             pagamentoEmEdicao = {
                 tipo,
@@ -1729,43 +1770,49 @@
 
             document.getElementById('pagamento-nome').innerText = nomePrestacao;
             document.getElementById('pagamento-data').innerText = formatarDataRelatorio(dataMovimento);
-            document.getElementById('pagamento-total').innerText = formatarMoeda(valorTotal);
-            document.getElementById('pagamento-ja-pago-rotulo').innerText = existente ? 'Outras parcelas' : 'Já pago';
+            const saldoAntes = tipo === 'agencia'
+                ? calcularSaldoJardasAte(dataMovimento, existente?.id || null)
+                : valorTotal;
+            document.getElementById('pagamento-total-rotulo').innerText = tipo === 'agencia' ? 'Saldo antes' : 'Total do dia';
+            document.getElementById('pagamento-total').innerText = tipo === 'agencia'
+                ? formatarMoeda(Math.abs(saldoAntes))
+                : formatarMoeda(valorTotal);
+            document.getElementById('pagamento-ja-pago-rotulo').innerText = tipo === 'agencia'
+                ? 'Acertos na data'
+                : (existente ? 'Outras parcelas' : 'Já pago');
             document.getElementById('pagamento-ja-pago').innerText = formatarMoeda(valorPagoOutros);
-            document.getElementById('pagamento-saldo').innerText = formatarMoeda(valorMaximo);
+            document.getElementById('pagamento-saldo-rotulo').innerText = tipo === 'agencia' ? 'Situação' : 'Disponível';
+            document.getElementById('pagamento-saldo').innerText = tipo === 'agencia'
+                ? situacaoSaldoJardas(saldoAntes).texto
+                : formatarMoeda(valorMaximo);
 
             const campoValor = document.getElementById('pagamento-valor-parcela');
             campoValor.value = valorInicial.toFixed(2);
-            campoValor.max = valorMaximo.toFixed(2);
-            campoValor.min = tipo === 'agencia' ? '0' : '0.01';
-            campoValor.readOnly = tipo !== 'catamara';
-            campoValor.classList.toggle('bg-gray-100', tipo !== 'catamara');
+            if (tipo === 'agencia') campoValor.removeAttribute('max');
+            else campoValor.max = valorMaximo.toFixed(2);
+            campoValor.min = '0.01';
+            campoValor.readOnly = false;
+            campoValor.classList.remove('bg-gray-100');
             atualizarPreviaPagamento();
 
             document.getElementById('pagamento-dica').innerText = tipo === 'catamara'
                 ? 'Para pagamento parcial, digite uma parte do saldo. O restante continuará pendente nesta data.'
-                : (valorTotal > 0
-                    ? 'Se houver pagamento nosso ao Jardas, o valor desta data será registrado integralmente.'
-                    : 'Feche a prestação. O saldo entre vocês será calculado automaticamente.');
+                : 'Digite qualquer valor pago agora. Pode ser uma parte ou um valor maior, que será abatido do saldo antigo.';
             document.getElementById('pagamento-observacao').value = existente?.observacao || '';
-            document.getElementById('pagamento-titulo').innerText = tipo === 'agencia' ? 'Fechar prestação Jardas' : 'Registrar pagamento';
+            document.getElementById('pagamento-titulo').innerText = tipo === 'agencia' ? 'Registrar pagamento Jardas' : 'Registrar pagamento';
             document.getElementById('pagamento-subtitulo').innerText = tipo === 'agencia'
-                ? 'Registre o acerto. O saldo final será calculado e salvo automaticamente.'
+                ? 'Informe o valor pago. O saldo anterior será compensado automaticamente.'
                 : 'Registre o valor pago agora. O restante poderá ser pago em outro dia.';
             const blocoSaldo = document.getElementById('saldo-prestacao-jardas');
             blocoSaldo.classList.toggle('hidden', tipo !== 'agencia');
             atualizarCampoSaldoPrestacao();
             document.getElementById('confirmar-pagamento').innerText = existente
-                ? (tipo === 'agencia' ? '💾 Atualizar prestação' : '💾 Atualizar pagamento')
-                : (tipo === 'agencia' ? '✅ Salvar prestação' : '✅ Registrar pagamento');
+                ? '💾 Atualizar pagamento'
+                : '✅ Registrar pagamento';
             document.getElementById('modal-pagamento').classList.remove('hidden');
             setTimeout(() => {
-                if (tipo === 'catamara') {
-                    campoValor.focus();
-                    campoValor.select();
-                } else {
-                    document.getElementById('pagamento-observacao').focus();
-                }
+                campoValor.focus();
+                campoValor.select();
             }, 50);
         }
 
@@ -1788,9 +1835,7 @@
             if (!observacao) return alert('Informe como o pagamento foi feito ou escreva uma observação.');
 
             const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
-            const valorPagamento = pagamentoEmEdicao.tipo === 'catamara'
-                ? Number(valorDigitado)
-                : pagamentoEmEdicao.valorTotal;
+            const valorPagamento = Number(valorDigitado);
 
             let saldoDeclaradoTipo = null;
             let saldoDeclaradoValor = 0;
@@ -1798,18 +1843,18 @@
                 const saldoAutomatico = calcularSaldoJardasAte(
                     pagamentoEmEdicao.dataMovimento,
                     pagamentoEmEdicao.prestacaoId
-                ) - valorPagamento;
+                ) + valorPagamento;
                 saldoDeclaradoTipo = saldoAutomatico < -0.009
                     ? 'jardas-deve'
                     : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
                 saldoDeclaradoValor = Math.abs(saldoAutomatico);
             }
 
-            if (!Number.isFinite(valorPagamento) || (pagamentoEmEdicao.tipo === 'catamara' && valorPagamento <= 0) || valorPagamento < 0) {
+            if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
                 return alert('Informe um valor de pagamento maior que zero.');
             }
 
-            if (valorPagamento > pagamentoEmEdicao.valorMaximo + 0.009) {
+            if (pagamentoEmEdicao.tipo === 'catamara' && valorPagamento > pagamentoEmEdicao.valorMaximo + 0.009) {
                 return alert(`O valor não pode ser maior que o saldo disponível de ${formatarMoeda(pagamentoEmEdicao.valorMaximo)}.`);
             }
 
@@ -1818,10 +1863,9 @@
             botao.innerText = 'Salvando...';
 
             const prestacaoExistente = pagamentoEmEdicao.prestacaoExistente;
-            const saldoAposPagamento = Math.max(
-                0,
-                pagamentoEmEdicao.valorTotal - pagamentoEmEdicao.valorPagoOutros - valorPagamento
-            );
+            const saldoAposPagamento = pagamentoEmEdicao.tipo === 'agencia'
+                ? saldoDeclaradoValor
+                : Math.max(0, pagamentoEmEdicao.valorTotal - pagamentoEmEdicao.valorPagoOutros - valorPagamento);
             const prestacao = {
                 tipo: pagamentoEmEdicao.tipo,
                 nome: pagamentoEmEdicao.nome,
@@ -1856,7 +1900,7 @@
                             ? `Saldo final: Jardas deve ${formatarMoeda(saldoDeclaradoValor)}`
                             : `Saldo final: devemos ao Jardas ${formatarMoeda(saldoDeclaradoValor)}`);
                     if (prestacao.tipo === 'agencia') {
-                        alert(`✅ Prestação registrada!\n\n${prestacao.nome}\nData: ${formatarDataRelatorio(prestacao.dataMovimento)}\n${saldoInformado}\nObservação: ${observacao}`);
+                        alert(`✅ Pagamento abatido no saldo!\n\nValor: ${formatarMoeda(valorPagamento)}\nData: ${formatarDataRelatorio(prestacao.dataMovimento)}\n${saldoInformado}\nObservação: ${observacao}`);
                     } else {
                         alert(`✅ Pagamento registrado!\n\n${prestacao.nome}\nData do movimento: ${formatarDataRelatorio(prestacao.dataMovimento)}\nValor pago agora: ${formatarMoeda(prestacao.valor)}\n${status}\nObservação: ${observacao}`);
                     }
@@ -1866,6 +1910,39 @@
                     botao.disabled = false;
                     botao.innerText = '✅ Registrar pagamento';
                 });
+        }
+
+        function zerarContasJardasAte(dataCorte) {
+            if (!dataCorte) return alert('Escolha a data até a qual deseja fechar as contas.');
+            if (dataCorte <= dataUltimoFechamentoJardas()) {
+                return alert(`As contas já estão zeradas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}. Escolha uma data posterior.`);
+            }
+            const saldoAtual = calcularSaldoJardasAte(dataCorte);
+            const situacaoAtual = situacaoSaldoJardas(saldoAtual).texto;
+            const mensagem = `Fechar e zerar todas as contas com o Jardas até ${formatarDataRelatorio(dataCorte)}?\n\nSaldo que será compensado: ${situacaoAtual}.\n\nO histórico não será apagado. Um fechamento ficará registrado e as contas seguintes começarão do zero.`;
+            if (!confirm(mensagem)) return;
+
+            const agora = new Date();
+            db.collection('prestacoes').add({
+                tipo: 'agencia',
+                nome: 'Jardas',
+                dataMovimento: dataCorte,
+                periodoInicio: inicioCortesiasAutomaticasJardas,
+                periodoFim: dataCorte,
+                valor: 0,
+                fechamentoGeral: true,
+                saldoAntesFechamento: saldoAtual,
+                saldoDeclaradoTipo: 'zerado',
+                saldoDeclaradoValor: 0,
+                statusPagamento: 'fechado',
+                pagamentoParcial: false,
+                observacao: `Contas compensadas e zeradas até ${formatarDataRelatorio(dataCorte)}`,
+                dataPrestacao: dataLocalHoje(),
+                horaPrestacao: agora.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                alert(`✅ Contas zeradas até ${formatarDataRelatorio(dataCorte)}.\n\nO fechamento foi salvo no histórico.`);
+            }).catch((error) => alert('Erro ao fechar as contas: ' + error.message));
         }
 
         function detalheSaldoPrestacao(prestacao) {
@@ -1880,6 +1957,11 @@
             return `<div class="text-xs font-bold ${cor} mt-1">⚖️ ${texto}: ${formatarMoeda(prestacao.saldoDeclaradoValor)}</div>`;
         }
 
+        function descricaoPagamentoJardas(prestacao) {
+            if (prestacao?.fechamentoGeral) return 'Contas zeradas';
+            return 'Pagamento abatido no saldo';
+        }
+
         function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes) {
             const resumoPagamento = obterResumoPagamentoDiario(tipo, nome, dataMovimento, valor);
             const prestacao = resumoPagamento.pagamentos[0];
@@ -1889,31 +1971,34 @@
                 ? 'bg-green-50 border-green-300'
                 : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200');
             const status = tipo === 'agencia'
-                ? (prestacao
-                    ? '<div class="text-xs text-green-700 font-bold">✅ Prestação registrada</div>'
-                    : '<div class="text-xs text-orange-600 font-bold">○ Prestação ainda não registrada</div>')
+                ? (resumoPagamento.pagamentos.length > 0
+                    ? `<div class="text-xs text-green-700 font-bold">✅ ${resumoPagamento.pagamentos.length} acerto(s) registrado(s) nesta data</div>`
+                    : '<div class="text-xs text-orange-600 font-bold">○ Nenhum pagamento registrado nesta data</div>')
                 : (resumoPagamento.quitado
                     ? `<div class="text-xs text-green-700 font-bold">✅ Quitado · Pago ${formatarMoeda(resumoPagamento.totalPago)}</div>`
                     : (resumoPagamento.parcial
                         ? `<div class="text-xs text-yellow-800 font-bold">🟡 Pagamento parcial · Pago ${formatarMoeda(resumoPagamento.totalPago)} · Falta ${formatarMoeda(resumoPagamento.saldoRestante)}</div>`
                         : '<div class="text-xs text-orange-600 font-bold">○ Pagamento pendente</div>'));
-            const observacao = prestacao && tipo !== 'catamara'
-                ? `<div class="text-xs text-gray-600 mt-1">💬 ${escaparHTML(prestacao.observacao || 'Prestação antiga sem observação')}</div>${detalheSaldoPrestacao(prestacao)}`
-                : '';
-            const listaParcelas = tipo === 'catamara' && resumoPagamento.pagamentos.length > 0
+            const observacao = '';
+            const listaParcelas = resumoPagamento.pagamentos.length > 0
                 ? `<div class="mt-2 space-y-1">
                     ${resumoPagamento.pagamentos.map(pagamento => {
                         const idArgumento = escaparHTML(JSON.stringify(pagamento.id));
+                        const tituloPagamento = tipo === 'agencia'
+                            ? descricaoPagamentoJardas(pagamento)
+                            : `${formatarDataHistorico(pagamento.dataPrestacao)} ${escaparHTML(pagamento.horaPrestacao || '')}`;
                         return `
                             <div class="bg-white bg-opacity-70 rounded p-2 text-xs">
                                 <div class="flex justify-between items-start gap-2">
                                     <div>
-                                        <div class="font-semibold text-gray-700">${formatarDataHistorico(pagamento.dataPrestacao)} ${escaparHTML(pagamento.horaPrestacao || '')}</div>
+                                        <div class="font-semibold text-gray-700">${escaparHTML(tituloPagamento)}</div>
+                                        <div class="text-gray-500">${formatarDataHistorico(pagamento.dataPrestacao)} ${escaparHTML(pagamento.horaPrestacao || '')}</div>
                                         <div class="text-gray-600">💬 ${escaparHTML(pagamento.observacao || 'Pagamento antigo sem observação')}</div>
+                                        ${tipo === 'agencia' ? detalheSaldoPrestacao(pagamento) : ''}
                                     </div>
                                     <div class="text-right">
                                         <div class="font-bold text-green-700">${formatarMoeda(pagamento.valor)}</div>
-                                        <button type="button" onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico}, ${idArgumento})" class="text-blue-700 font-semibold mt-1">✏️ Editar</button>
+                                        ${pagamento.fechamentoGeral ? '' : `<button type="button" onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico}, ${idArgumento})" class="text-blue-700 font-semibold mt-1">✏️ Editar</button>`}
                                     </div>
                                 </div>
                             </div>`;
@@ -1929,9 +2014,11 @@
                             ${resumoPagamento.parcial ? '➕ Registrar outra parte' : '💰 Pagar total ou parcial'}
                          </button>`;
             } else if (tipo !== 'catamara') {
-                botao = `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${prestacao ? 'bg-blue-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
-                            ${prestacao ? '✏️ Editar prestação' : '✅ Fechar prestação'}
-                         </button>`;
+                botao = dataMovimento <= dataUltimoFechamentoJardas()
+                    ? `<div class="text-xs text-gray-600 font-semibold mt-2">⚖️ Contas fechadas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}</div>`
+                    : `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 bg-green-600 text-white text-xs font-bold py-2 rounded-lg">
+                            ➕ Registrar pagamento total ou parcial
+                       </button>`;
             }
 
             return `
@@ -2194,11 +2281,11 @@
                     .map(([age, d]) => {
                     const diasDaAgencia = Object.entries(d.dias)
                         .sort(([dataA], [dataB]) => dataB.localeCompare(dataA));
-                    const totalPagoAoJardas = diasDaAgencia.reduce((total, [data, dia]) => {
-                        const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                        const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
-                        return total + obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                    const resumoAcertosPeriodo = diasDaAgencia.reduce((total, [data]) => {
+                        const resumoDia = resumoPagamentosJardas(obterPrestacoesDiarias('agencia', age, data));
+                        return total + resumoDia.valorAbatido;
                     }, 0);
+                    const totalAbatidoJardas = resumoAcertosPeriodo;
                     const cortesiasConcedidas = diasDaAgencia.reduce((total, [data, dia]) =>
                         total + obterCortesiasDiariasJardas(data, dia.adultos).quantidade,
                     0);
@@ -2206,19 +2293,14 @@
                     const saldoAnteriorPeriodo = calcularSaldoJardasAte(deslocarData(dataInicio, -1));
                     const saldoAnteriorPorData = {};
                     const saldoAposPorData = {};
-                    let saldoAcumulado = saldoAnteriorPeriodo;
                     diasDaAgencia
                         .slice()
                         .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
-                        .forEach(([data, dia]) => {
-                            const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                            const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
-                            const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
-                            saldoAnteriorPorData[data] = saldoAcumulado;
-                            saldoAcumulado += dia.valorPago + dia.comissao + cortesiasDia.valor - dia.passagens - pagoAoJardas;
-                            saldoAposPorData[data] = saldoAcumulado;
+                        .forEach(([data]) => {
+                            saldoAnteriorPorData[data] = calcularSaldoJardasAte(deslocarData(data, -1));
+                            saldoAposPorData[data] = calcularSaldoJardasAte(data);
                         });
-                    const saldoLiquido = saldoAcumulado;
+                    const saldoLiquido = calcularSaldoJardasAte(dataFim);
                     const situacaoPeriodo = situacaoSaldoJardas(saldoLiquido);
                     const detalhesWhats = diasDaAgencia.map(([data, dia]) => {
                         const guiasDoDia = dia.guias
@@ -2232,24 +2314,22 @@
                             })
                             .join('\n');
                         const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                        const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
-                        const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                        const acertosDia = resumoPagamentosJardas(obterPrestacoesDiarias('agencia', age, data));
                         const saldoDia = saldoAposPorData[data];
                         const parcelaPagamento = dia.valorPago > 0 ? ` - ${formatarValorCurto(dia.valorPago)} pago` : '';
-                        const parcelaPagoAoJardas = pagoAoJardas > 0 ? ` + ${formatarValorCurto(pagoAoJardas)} pago ao Jardas` : '';
-                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaPagoAoJardas}\n*${situacaoSaldoJardas(saldoDia).texto}*`;
+                        const parcelaAbatida = acertosDia.valorAbatido > 0 ? ` - ${formatarValorCurto(acertosDia.valorAbatido)} pagamento abatido` : '';
+                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaAbatida}\n*${situacaoSaldoJardas(saldoDia).texto}*`;
                     }).join('\n\n');
                     const pagamentosPeriodo = d.valorPago > 0 ? `\nPagamentos = ${formatarValorCurto(d.valorPago)}` : '';
-                    const pagoAoJardasPeriodo = totalPagoAoJardas > 0 ? `\nPago ao Jardas = ${formatarValorCurto(totalPagoAoJardas)}` : '';
+                    const pagamentosAbatidosPeriodo = totalAbatidoJardas > 0 ? `\nPagamentos abatidos = ${formatarValorCurto(totalAbatidoJardas)}` : '';
                     const resumoPeriodo = diasDaAgencia.length > 1
-                        ? `\n\n*TOTAL DO PERÍODO*\nTotal de pax = ${d.adultos}${d.criancas > 0 ? `+${d.criancas}chd` : ''}\nTotal de cortesia = ${d.cortesias}\nValor total = ${formatarValorCurto(d.passagens)}\nAlmoço = ${formatarValorCurto(d.comissao)}${pagamentosPeriodo}${pagoAoJardasPeriodo}\n*${situacaoPeriodo.texto}*`
+                        ? `\n\n*TOTAL DO PERÍODO*\nTotal de pax = ${d.adultos}${d.criancas > 0 ? `+${d.criancas}chd` : ''}\nTotal de cortesia = ${d.cortesias}\nValor total = ${formatarValorCurto(d.passagens)}\nAlmoço = ${formatarValorCurto(d.comissao)}${pagamentosPeriodo}${pagamentosAbatidosPeriodo}\n*${situacaoPeriodo.texto}*`
                         : '';
                     const textoWhats = `*CONTAS JARDAS*\n${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n\n${detalhesWhats}${resumoPeriodo}`;
                     const linhasDiarias = diasDaAgencia
                         .map(([data, dia]) => {
                             const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
                             const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
-                            const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
                             const saldoDia = saldoAposPorData[data];
                             const situacaoDia = situacaoSaldoJardas(saldoDia);
                             const pagamentosGuias = dia.guias
@@ -2284,13 +2364,13 @@
                         passagens: d.passagens,
                         comissao: d.comissao,
                         valorPago: d.valorPago,
-                        pagoAoJardas: totalPagoAoJardas,
+                        valorAbatido: totalAbatidoJardas,
                         saldoAnterior: saldoAnteriorPeriodo,
                         saldo: saldoLiquido,
                         dias: diasDaAgencia.map(([data, dia]) => {
                             const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
                             const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
-                            const pagoAoJardas = obterResumoPagamentoDiario('agencia', age, data, valorParaRepasse).totalPago;
+                            const acertosDia = resumoPagamentosJardas(obterPrestacoesDiarias('agencia', age, data));
                             return {
                                 data,
                                 adultos: dia.adultos,
@@ -2301,7 +2381,7 @@
                                 passagens: dia.passagens,
                                 comissao: dia.comissao,
                                 valorPago: dia.valorPago,
-                                pagoAoJardas,
+                                valorAbatido: acertosDia.valorAbatido,
                                 saldoAnterior: saldoAnteriorPorData[data],
                                 saldo: saldoAposPorData[data],
                                 guias: dia.guias
@@ -2337,13 +2417,17 @@
                                         <div class="text-xs text-gray-500">${situacaoPeriodo.rotulo}</div>
                                         <div class="font-bold ${saldoLiquido === 0 ? 'text-green-700' : (saldoLiquido > 0 ? 'text-purple-700' : 'text-red-600')}">${formatarMoeda(Math.abs(saldoLiquido))}</div>
                                     </div>
-                                    <div class="${totalPagoAoJardas > 0 ? 'bg-green-50' : 'bg-gray-50'} rounded-lg p-2 text-right">
-                                        <div class="text-xs text-gray-500">Já pago ao Jardas</div>
-                                        <div class="font-bold text-green-700">${formatarMoeda(totalPagoAoJardas)}</div>
+                                    <div class="${totalAbatidoJardas > 0 ? 'bg-green-50' : 'bg-gray-50'} rounded-lg p-2 text-right">
+                                        <div class="text-xs text-gray-500">Pagamentos abatidos</div>
+                                        <div class="font-bold text-green-700">${formatarMoeda(totalAbatidoJardas)}</div>
                                     </div>
                                 </div>
                             </div>
                             <button type="button" onclick="compartilharVoucherJardas('${voucherId}', this)" class="block w-full bg-green-600 text-white text-sm font-bold py-3 rounded-lg text-center mb-3">📤 Compartilhar voucher no WhatsApp</button>
+                            ${dataFim > dataUltimoFechamentoJardas()
+                                ? `<button type="button" onclick="abrirPagamentoDiario('agencia', 'Jardas', '${dataFim}', 0)" class="block w-full bg-purple-700 text-white text-sm font-bold py-3 rounded-lg text-center mb-3">💰 Registrar pagamento em ${formatarDataRelatorio(dataFim)}</button>
+                                   <button type="button" onclick="zerarContasJardasAte('${dataFim}')" class="block w-full bg-gray-700 text-white text-sm font-bold py-3 rounded-lg text-center mb-3">⚖️ Fechar e zerar contas até ${formatarDataRelatorio(dataFim)}</button>`
+                                : `<div class="bg-gray-100 text-gray-700 text-sm font-bold p-3 rounded-lg text-center mb-3">⚖️ Contas já fechadas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}</div>`}
                             <div class="space-y-2">${linhasDiarias}</div>
                         </div>`;
                 }).join('');
@@ -2410,6 +2494,13 @@
         }
 
         function detalheParcelaPrestacao(prestacao) {
+            if (prestacao.tipo === 'agencia') {
+                if (prestacao.fechamentoGeral) {
+                    const saldoAnterior = situacaoSaldoJardas(Number(prestacao.saldoAntesFechamento) || 0).texto;
+                    return `<div class="text-xs text-gray-700 font-semibold">⚖️ Fechamento geral · antes: ${escaparHTML(saldoAnterior)}</div>`;
+                }
+                return `<div class="text-xs text-purple-700 font-semibold">💰 ${escaparHTML(descricaoPagamentoJardas(prestacao))} · pagamento ${prestacao.pagamentoParcial ? 'parcial' : 'registrado'}</div>`;
+            }
             const valorTotal = Number(prestacao.valorTotalMovimento) || 0;
             if (prestacao.tipo !== 'catamara' || valorTotal <= 0) return '';
 
