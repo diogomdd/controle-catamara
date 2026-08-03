@@ -703,6 +703,68 @@
             );
         }
 
+        function calcularBaixasDiariasJardas(dataFim) {
+            const fechamentoAteData = prestacoes
+                .filter(p =>
+                    p.tipo === 'agencia' &&
+                    ehAgenciaComissionada(p.nome) &&
+                    p.fechamentoGeral &&
+                    p.dataMovimento &&
+                    p.dataMovimento <= dataFim
+                )
+                .reduce((dataMaisRecente, p) => p.dataMovimento > dataMaisRecente ? p.dataMovimento : dataMaisRecente, dataFim >= fechamentoInicialJardas ? fechamentoInicialJardas : '');
+            const dataInicio = fechamentoAteData
+                ? deslocarData(fechamentoAteData, 1)
+                : inicioCortesiasAutomaticasJardas;
+            const dias = {};
+
+            registrosGuias
+                .filter(registro =>
+                    ehAgenciaComissionada(registro.agencia) &&
+                    registro.data >= dataInicio &&
+                    registro.data <= dataFim
+                )
+                .forEach(registro => {
+                    if (!dias[registro.data]) dias[registro.data] = { adultos: 0, criancas: 0, valorPagoGuias: 0 };
+                    dias[registro.data].adultos += Number(registro.adultos) || 0;
+                    dias[registro.data].criancas += Number(registro.criancas) || 0;
+                    dias[registro.data].valorPagoGuias += Number(registro.valorPago) || 0;
+                });
+
+            let creditoDisponivel = prestacoes
+                .filter(p =>
+                    p.tipo === 'agencia' &&
+                    ehAgenciaComissionada(p.nome) &&
+                    !p.fechamentoGeral &&
+                    p.dataMovimento >= dataInicio &&
+                    p.dataMovimento <= dataFim
+                )
+                .reduce((total, p) => total + Math.max(0, Number(p.valor) || 0), 0);
+            const totalPagamentos = creditoDisponivel;
+            const porData = {};
+
+            Object.entries(dias)
+                .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+                .forEach(([data, dia]) => {
+                    const passagens = (dia.adultos * config.adulto) + (dia.criancas * config.crianca);
+                    const comissao = dia.adultos * config.comissao;
+                    const cortesias = obterCortesiasDiariasJardas(data, dia.adultos).valor;
+                    const valorDevido = Math.max(0, passagens - dia.valorPagoGuias - comissao - cortesias);
+                    const valorAbatido = Math.min(valorDevido, creditoDisponivel);
+                    const restante = Math.max(0, valorDevido - valorAbatido);
+                    creditoDisponivel = Math.max(0, creditoDisponivel - valorAbatido);
+                    porData[data] = {
+                        valorDevido,
+                        valorAbatido,
+                        restante,
+                        quitado: valorDevido > 0 && restante < 0.01,
+                        parcial: valorAbatido > 0 && restante >= 0.01
+                    };
+                });
+
+            return { porData, totalPagamentos, creditoSobrando: creditoDisponivel };
+        }
+
         function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
             if (!dataFim || dataFim < inicioCortesiasAutomaticasJardas) return 0;
 
@@ -861,7 +923,7 @@
                 ctx.stroke();
 
                 desenharLinha(
-                    dia.fechamentoNoDia ? 'Fechamento realizado = contas zeradas' : `Saldo anterior = ${situacaoSaldoJardas(dia.saldoAnterior).texto}`,
+                    dia.fechamentoNoDia ? 'Fechamento realizado = contas zeradas' : `Valor devido do dia = ${formatarValorCurto(dia.valorDevido)}`,
                     margem + 34,
                     linhaY + 30,
                     28,
@@ -1978,20 +2040,24 @@
             return 'Pagamento abatido no saldo';
         }
 
-        function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes) {
+        function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes, baixaJardas = null) {
             const resumoPagamento = obterResumoPagamentoDiario(tipo, nome, dataMovimento, valor);
             const prestacao = resumoPagamento.pagamentos[0];
             const nomeArgumento = escaparHTML(JSON.stringify(nome));
             const valorNumerico = Number(valor) || 0;
-            const classeCartao = resumoPagamento.quitado
-                ? 'bg-green-50 border-green-300'
-                : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200');
+            const classeCartao = tipo === 'agencia' && baixaJardas
+                ? (baixaJardas.quitado ? 'bg-green-50 border-green-300' : (baixaJardas.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'))
+                : (resumoPagamento.quitado
+                    ? 'bg-green-50 border-green-300'
+                    : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'));
             const status = tipo === 'agencia'
                 ? (ehDataFechamentoJardas(dataMovimento)
                     ? '<div class="text-xs text-green-700 font-bold">⚖️ Contas zeradas nesta data</div>'
-                    : (resumoPagamento.pagamentos.length > 0
-                    ? `<div class="text-xs text-green-700 font-bold">✅ ${resumoPagamento.pagamentos.length} acerto(s) registrado(s) nesta data</div>`
-                    : '<div class="text-xs text-orange-600 font-bold">○ Nenhum pagamento registrado nesta data</div>'))
+                    : (baixaJardas?.quitado
+                        ? `<div class="text-xs text-green-700 font-bold">✅ Dia quitado · Baixado ${formatarMoeda(baixaJardas.valorAbatido)}</div>`
+                        : (baixaJardas?.parcial
+                            ? `<div class="text-xs text-yellow-800 font-bold">🟡 Baixa parcial · Baixado ${formatarMoeda(baixaJardas.valorAbatido)} · Falta ${formatarMoeda(baixaJardas.restante)}</div>`
+                            : `<div class="text-xs text-orange-600 font-bold">○ Pendente · Falta ${formatarMoeda(baixaJardas?.restante || 0)}</div>`)))
                 : (resumoPagamento.quitado
                     ? `<div class="text-xs text-green-700 font-bold">✅ Quitado · Pago ${formatarMoeda(resumoPagamento.totalPago)}</div>`
                     : (resumoPagamento.parcial
@@ -2308,6 +2374,7 @@
                         total + obterCortesiasDiariasJardas(data, dia.adultos).quantidade,
                     0);
                     const valorCortesiasConcedidas = cortesiasConcedidas * config.adulto;
+                    const baixasDiariasJardas = calcularBaixasDiariasJardas(dataFim);
                     const saldoAnteriorPeriodo = ehDataFechamentoJardas(dataInicio)
                         ? 0
                         : calcularSaldoJardasAte(deslocarData(dataInicio, -1));
@@ -2336,13 +2403,12 @@
                             })
                             .join('\n');
                         const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                        const acertosDia = resumoPagamentosJardas(obterPrestacoesDiarias('agencia', age, data));
-                        const saldoDia = saldoAposPorData[data];
+                        const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, valorAbatido: 0, restante: 0 };
                         const fechamentoNoDia = ehDataFechamentoJardas(data);
                         const parcelaPagamento = dia.valorPago > 0 ? ` - ${formatarValorCurto(dia.valorPago)} pago` : '';
-                        const parcelaAbatida = acertosDia.valorAbatido > 0 ? ` - ${formatarValorCurto(acertosDia.valorAbatido)} pagamento abatido` : '';
+                        const parcelaAbatida = baixaDia.valorAbatido > 0 ? ` - ${formatarValorCurto(baixaDia.valorAbatido)} pagamento abatido` : '';
                         const fechamento = fechamentoNoDia ? '\n*Fechamento realizado: contas zeradas*' : '';
-                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaAbatida}${fechamento}\n*${situacaoSaldoJardas(saldoDia).texto}*`;
+                        return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\n\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaAbatida}${fechamento}\n*${fechamentoNoDia ? 'Saldo zerado' : situacaoSaldoJardas(-baixaDia.restante).texto}*`;
                     }).join('\n\n');
                     const pagamentosPeriodo = d.valorPago > 0 ? `\nPagamentos = ${formatarValorCurto(d.valorPago)}` : '';
                     const pagamentosAbatidosPeriodo = totalAbatidoJardas > 0 ? `\nPagamentos abatidos = ${formatarValorCurto(totalAbatidoJardas)}` : '';
@@ -2353,9 +2419,8 @@
                     const linhasDiarias = diasDaAgencia
                         .map(([data, dia]) => {
                             const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                            const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
-                            const saldoDia = saldoAposPorData[data];
-                            const situacaoDia = situacaoSaldoJardas(saldoDia);
+                            const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, valorAbatido: 0, restante: 0, quitado: false, parcial: false };
+                            const valorParaRepasse = baixaDia.valorDevido;
                             const fechamentoNoDia = ehDataFechamentoJardas(data);
                             const pagamentosGuias = dia.guias
                                 .filter(guia => guia.valorPago > 0)
@@ -2372,7 +2437,8 @@
                                 age,
                                 data,
                                 valorParaRepasse,
-                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}${fechamentoNoDia ? '<div class="mt-1 text-green-700 font-bold">⚖️ Fechamento realizado: contas zeradas nesta data</div>' : `<div class="mt-1 text-gray-600">Saldo anterior: ${situacaoSaldoJardas(saldoAnteriorPorData[data]).texto}</div>`}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">Passagens ${formatarMoeda(dia.passagens)} · Comissão ${formatarMoeda(dia.comissao)} · ${situacaoDia.texto}</div>`
+                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}${fechamentoNoDia ? '<div class="mt-1 text-green-700 font-bold">⚖️ Fechamento realizado: contas zeradas nesta data</div>' : ''}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">Valor do dia ${formatarMoeda(baixaDia.valorDevido)} · Baixado ${formatarMoeda(baixaDia.valorAbatido)} · Restante ${formatarMoeda(baixaDia.restante)}</div>`,
+                                baixaDia
                             );
                         })
                         .join('');
@@ -2394,8 +2460,7 @@
                         saldo: saldoLiquido,
                         dias: diasDaAgencia.map(([data, dia]) => {
                             const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                            const valorParaRepasse = Math.max(0, dia.comissao + dia.valorPago + cortesiasDia.valor - dia.passagens);
-                            const acertosDia = resumoPagamentosJardas(obterPrestacoesDiarias('agencia', age, data));
+                            const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, valorAbatido: 0, restante: 0 };
                             return {
                                 data,
                                 adultos: dia.adultos,
@@ -2406,9 +2471,11 @@
                                 passagens: dia.passagens,
                                 comissao: dia.comissao,
                                 valorPago: dia.valorPago,
-                                valorAbatido: acertosDia.valorAbatido,
+                                valorDevido: baixaDia.valorDevido,
+                                valorAbatido: baixaDia.valorAbatido,
+                                restante: baixaDia.restante,
                                 saldoAnterior: saldoAnteriorPorData[data],
-                                saldo: saldoAposPorData[data],
+                                saldo: ehDataFechamentoJardas(data) ? 0 : -baixaDia.restante,
                                 fechamentoNoDia: ehDataFechamentoJardas(data),
                                 guias: dia.guias
                                     .slice()

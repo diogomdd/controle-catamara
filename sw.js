@@ -1,4 +1,4 @@
-const CACHE_NAME = 'catamara-v15';
+const CACHE_NAME = 'catamara-v16';
 const urlsToCache = [
   './',
   './index.html',
