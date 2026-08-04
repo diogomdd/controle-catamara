@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Controle Catamarã</title>
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -15,7 +15,30 @@
     <meta name="theme-color" content="#2563eb">
     
     <style>
-        body { font-family: sans-serif; padding-bottom: 90px; background-color: #f3f4f6; }
+        html { min-height: 100%; overscroll-behavior-y: none; }
+        body {
+            font-family: sans-serif;
+            min-height: 100%;
+            padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+            background-color: #f3f4f6;
+            overflow-x: hidden;
+            overscroll-behavior-y: none;
+        }
+        .app-bottom-nav {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            z-index: 50;
+            padding-top: 8px;
+            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            transform: translate3d(0, 0, 0);
+            -webkit-transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            will-change: transform;
+        }
         .tab-active { background-color: #2563eb; color: white; }
         .btn-add { background-color: #10b981; color: white; }
         .btn-boat { background-color: #3b82f6; color: white; }
@@ -505,7 +528,7 @@
         </div>
     </div>
 
-    <nav class="fixed bottom-0 w-full bg-white border-t flex justify-around py-2 shadow-lg">
+    <nav class="app-bottom-nav bg-white border-t flex justify-around shadow-lg">
         <button onclick="abrirTab('guias')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0 tab-active" id="btn-guias">
             <span class="text-xl">📋</span> Guias
         </button>
@@ -866,8 +889,8 @@
             const largura = 1080;
             const margem = 64;
             const alturaCabecalho = 230;
-            const alturasDias = voucher.dias.map(dia => 438 + (dia.guias.length * 58));
-            const alturaResumo = voucher.dias.length > 1 ? 470 : 210;
+            const alturasDias = voucher.dias.map(dia => 560 + (dia.guias.length * 58));
+            const alturaResumo = voucher.dias.length > 1 ? 600 : 280;
             const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
             const canvas = document.createElement('canvas');
             canvas.width = largura;
@@ -943,7 +966,8 @@
 
                 const restanteDia = Math.max(0, Number(dia.restante) || 0);
                 const corSaldo = restanteDia > 0.009 ? '#b91c1c' : '#15803d';
-                desenharLinha(`Restante deste dia = ${formatarValorCurto(restanteDia)}`, margem + 34, linhaY + 326, 38, corSaldo, true);
+                desenharLinha('RESTANTE DESTE DIA', margem + 34, linhaY + 340, 30, '#475569', true);
+                desenharLinha(formatarMoeda(restanteDia), margem + 34, linhaY + 408, 46, corSaldo, true);
                 y += alturasDias[indice];
             });
 
@@ -954,21 +978,22 @@
                 ctx.fill();
                 let resumoY = y + 58;
                 desenharLinha('TOTAL DO PERÍODO', margem + 34, resumoY, 38, '#14532d', true);
-                desenharLinha(`Saldo anterior = ${situacaoSaldoJardas(voucher.saldoAnterior).texto}`, margem + 34, resumoY + 54, 28, '#475569');
-                desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 102, 30);
-                desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 150, 30);
-                desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 198, 30);
-                desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 246, 30);
-                if (voucher.valorPago > 0) desenharLinha(`Pagamentos = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 294, 30);
-                desenharLinha(`SALDO FINAL TOTAL = ${situacaoSaldoJardas(voucher.saldo).texto}`, margem + 34, resumoY + 354, 38, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
+                desenharLinha(`Saldo anterior = ${situacaoSaldoJardas(voucher.saldoAnterior).texto}`, margem + 34, resumoY + 58, 28, '#475569');
+                desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 116, 30);
+                desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 174, 30);
+                desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 232, 30);
+                desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 290, 30);
+                if (voucher.valorPago > 0) desenharLinha(`Pagamentos = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 348, 30);
+                desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY + 414, 30, '#475569', true);
+                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 482, 46, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
             } else {
                 ctx.fillStyle = '#dcfce7';
                 ctx.beginPath();
                 ctx.roundRect(margem, y, largura - (margem * 2), alturaResumo - 30, 24);
                 ctx.fill();
-                const resumoY = y + 62;
-                desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY, 36, '#14532d', true);
-                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 70, 42, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
+                const resumoY = y + 76;
+                desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY, 34, '#14532d', true);
+                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 84, 48, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
             }
 
             const dataUrl = canvas.toDataURL('image/png');
