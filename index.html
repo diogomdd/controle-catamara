@@ -8,6 +8,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -67,15 +68,41 @@
             color: white;
             border-color: #2563eb;
         }
+        .auth-screen {
+            position: fixed; inset: 0; z-index: 200; display: flex;
+            align-items: center; justify-content: center; padding: 24px;
+            background: linear-gradient(160deg, #1d4ed8, #0f766e);
+        }
+        .auth-screen.hidden { display: none; }
+        body.auth-pendente > :not(#auth-screen) { visibility: hidden; }
     </style>
 </head>
-<body class="text-gray-800">
+<body class="text-gray-800 auth-pendente">
+
+    <section id="auth-screen" class="auth-screen" aria-labelledby="auth-titulo">
+        <form id="auth-form" class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onsubmit="entrarNoApp(event)">
+            <div class="text-center mb-5">
+                <div class="text-5xl mb-2">⛵</div>
+                <h1 id="auth-titulo" class="text-xl font-bold text-blue-800">Controle Catamarã</h1>
+                <p class="text-sm text-gray-500 mt-1">Entre com a conta autorizada.</p>
+            </div>
+            <label for="auth-email" class="block text-sm font-semibold mb-1">Login (e-mail)</label>
+            <input id="auth-email" type="email" value="diogomorais91@hotmail.com" readonly autocomplete="username" required class="w-full border-2 border-blue-200 bg-gray-50 rounded-lg p-3 mb-3">
+            <label for="auth-senha" class="block text-sm font-semibold mb-1">Senha</label>
+            <input id="auth-senha" type="password" autocomplete="current-password" required minlength="6" class="w-full border-2 border-blue-200 rounded-lg p-3 mb-2">
+            <p id="auth-erro" class="hidden text-sm text-red-600 font-semibold mb-3" role="alert"></p>
+            <button id="auth-entrar" type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow">Entrar</button>
+            <button type="button" onclick="enviarLinkSenha()" class="w-full mt-2 text-blue-700 font-semibold py-2">Definir ou esquecer senha</button>
+            <p class="text-xs text-gray-500 text-center mt-4">A mesma conta pode ser usada simultaneamente em mais de um celular.</p>
+        </form>
+    </section>
 
     <div id="syncIndicator" class="sync-indicator sync-offline">⏳ Conectando...</div>
 
-    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10">
+    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10 relative">
         <h1 class="text-xl font-bold text-center">⛵ Controle de Embarques</h1>
         <p class="text-center text-sm opacity-80" id="dataHoje"></p>
+        <button type="button" onclick="sairDoApp()" class="absolute right-3 top-3 text-xs bg-blue-800 px-3 py-2 rounded-lg" aria-label="Sair da conta">Sair</button>
     </header>
 
     <!-- SELETOR GLOBAL DE DATA -->
@@ -421,7 +448,7 @@
                 </div>
             </div>
 
-            <div class="card p-4">
+            <div class="card p-4 mb-4">
                 <h3 class="font-bold text-blue-700 mb-3">Todos os Pagamentos</h3>
                 <div id="lista-prestacoes" class="space-y-2">
                     <p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
@@ -437,14 +464,14 @@
                 <h3 class="font-bold mb-3">💵 Valores</h3>
                 <p class="text-xs text-gray-500 mb-3">️ Alterar afeta só novos lançamentos.</p>
                 
-                <label class="block text-sm font-semibold mb-1">Adulto (R$)</label>
-                <input type="number" id="cfg-adulto" step="0.01" class="w-full border rounded p-2 mb-3">
+                <label for="cfg-adulto" class="block text-sm font-semibold mb-1">Adulto (R$)</label>
+                <input type="number" id="cfg-adulto" min="0" step="0.01" class="w-full border rounded p-2 mb-3">
 
-                <label class="block text-sm font-semibold mb-1">Criança (R$)</label>
-                <input type="number" id="cfg-crianca" step="0.01" class="w-full border rounded p-2 mb-3">
+                <label for="cfg-crianca" class="block text-sm font-semibold mb-1">Criança (R$)</label>
+                <input type="number" id="cfg-crianca" min="0" step="0.01" class="w-full border rounded p-2 mb-3">
 
-                <label class="block text-sm font-semibold mb-1">Comissão Jardas por adulto (R$)</label>
-                <input type="number" id="cfg-comissao" step="0.01" class="w-full border rounded p-2 mb-3">
+                <label for="cfg-comissao" class="block text-sm font-semibold mb-1">Comissão Jardas por adulto (R$)</label>
+                <input type="number" id="cfg-comissao" min="0" step="0.01" class="w-full border rounded p-2 mb-3">
 
                 <button onclick="salvarConfig()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow">
                     💾 Salvar Configurações
@@ -461,9 +488,7 @@
                 </button>
                 <input type="file" id="inputRestore" accept=".json" class="hidden" onchange="restaurarBackup(event)">
                 <p class="text-xs text-gray-500 mb-3">Use para recuperar seus dados em outro celular ou após limpar cache.</p>
-                <button onclick="limparTudo()" class="w-full bg-red-500 text-white font-bold py-2 rounded-lg shadow">
-                    ️ Apagar Todos os Dados
-                </button>
+                <p class="text-xs text-gray-500">Por segurança, a exclusão geral do banco foi removida. Exclua somente o lançamento necessário; ele ficará preservado no Histórico.</p>
             </div>
         </div>
     </main>
@@ -494,6 +519,14 @@
                         <div class="text-xs text-gray-500" id="pagamento-saldo-rotulo">Disponível</div>
                         <div class="font-bold text-orange-700" id="pagamento-saldo"></div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="font-bold text-red-700 mb-1">Registros excluídos</h3>
+                <p class="text-xs text-gray-500 mb-3">Itens retirados das contas, preservados para conferência.</p>
+                <div id="historico-exclusoes" class="space-y-2">
+                    <p class="text-gray-500 text-sm">Nenhum registro excluído.</p>
                 </div>
             </div>
 
@@ -562,16 +595,26 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+        db.enablePersistence({ synchronizeTabs: true }).catch(erro => {
+            if (!['failed-precondition', 'unimplemented'].includes(erro.code)) {
+                console.warn('Armazenamento offline indisponível:', erro);
+            }
+        });
 
         let registrosGuias = [];
         let registrosEmbarcacoes = [];
         let prestacoes = [];
+        let historicoExclusoes = [];
         let config = { adulto: 60, crianca: 35, comissao: 5 };
         let dataGlobal = dataLocalHoje();
         let filtroTipoRelatorio = 'ambos';
         let pagamentoEmEdicao = null;
         let guiaEmEdicaoId = null;
         let vouchersJardas = {};
+        let canceladoresSnapshot = [];
+        let usuarioAtual = null;
+        let temporizadorAtualizacao = null;
+        const cacheSaldoJardas = new Map();
         const inicioCortesiasAutomaticasJardas = '2026-07-21';
         const fechamentoInicialJardas = '2026-07-26';
         const tabelaJacilene = {
@@ -622,7 +665,9 @@
         }
 
         function escapeCSV(valor) {
-            const str = String(valor || '').replace(/"/g, '""');
+            let conteudo = String(valor ?? '');
+            if (/^[=+\-@]/.test(conteudo)) conteudo = `'${conteudo}`;
+            const str = conteudo.replace(/"/g, '""');
             return `"${str}"`;
         }
 
@@ -637,6 +682,27 @@
 
         function ehAgenciaComissionada(nome) {
             return chaveAgencia(nome) === 'jardas';
+        }
+
+        function distanciaTexto(a, b) {
+            const origem = String(a || '');
+            const destino = String(b || '');
+            const linha = Array.from({ length: destino.length + 1 }, (_, indice) => indice);
+            for (let i = 1; i <= origem.length; i++) {
+                let anterior = linha[0];
+                linha[0] = i;
+                for (let j = 1; j <= destino.length; j++) {
+                    const atual = linha[j];
+                    linha[j] = Math.min(linha[j] + 1, linha[j - 1] + 1, anterior + (origem[i - 1] === destino[j - 1] ? 0 : 1));
+                    anterior = atual;
+                }
+            }
+            return linha[destino.length];
+        }
+
+        function pareceAgenciaJardas(nome) {
+            const chave = chaveAgencia(nome);
+            return chave !== 'jardas' && (chave.includes('jard') || distanciaTexto(chave, 'jardas') <= 2);
         }
 
         function nomeFormaPagamentoGuia(valor) {
@@ -671,13 +737,13 @@
             return (gruposDeVinte * 2) + (restante >= 15 ? 1 : 0);
         }
 
-        function obterCortesiasDiariasJardas(data, adultos) {
+        function obterCortesiasDiariasJardas(data, adultos, valorAdulto = 60) {
             const quantidade = data >= inicioCortesiasAutomaticasJardas
                 ? calcularCortesiasJardas(adultos)
                 : 0;
             return {
                 quantidade,
-                valor: quantidade * config.adulto
+                valor: quantidade * (Number(valorAdulto) || 60)
             };
         }
 
@@ -698,7 +764,17 @@
         function valorAssinadoPagamentoJardas(prestacao) {
             const valor = Math.max(0, Number(prestacao?.valor) || 0);
             if (prestacao?.fechamentoGeral || valor <= 0) return 0;
+            const efeitoSalvo = Number(prestacao?.efeitoSaldo);
+            if (Number.isFinite(efeitoSalvo)) return efeitoSalvo;
             return valor;
+        }
+
+        function aplicarPagamentoAoSaldo(saldoAntes, valorPagamento) {
+            const saldo = Number(saldoAntes) || 0;
+            const valor = Math.max(0, Number(valorPagamento) || 0);
+            if (saldo < -0.009) return saldo + valor;
+            if (saldo > 0.009) return saldo - valor;
+            return 0;
         }
 
         function resumoPagamentosJardas(pagamentos) {
@@ -748,13 +824,20 @@
                     registro.data <= dataFim
                 )
                 .forEach(registro => {
-                    if (!dias[registro.data]) dias[registro.data] = { adultos: 0, criancas: 0, valorPagoGuias: 0 };
+                    if (!dias[registro.data]) dias[registro.data] = { adultos: 0, criancas: 0, valorPagoGuias: 0, passagens: 0, comissao: 0, valorAdulto: 0 };
                     dias[registro.data].adultos += Number(registro.adultos) || 0;
                     dias[registro.data].criancas += Number(registro.criancas) || 0;
                     dias[registro.data].valorPagoGuias += Number(registro.valorPago) || 0;
+                    dias[registro.data].passagens += valorFaturamentoRegistro(registro);
+                    dias[registro.data].comissao += valorComissaoRegistro(registro);
+                    if (!dias[registro.data].valorAdulto) dias[registro.data].valorAdulto = valorAdultoRegistro(registro);
                 });
 
-            let creditoDisponivel = prestacoes
+            const creditoOperacional = Object.entries(dias).reduce((total, [data, dia]) => {
+                const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor;
+                return total + Math.max(0, dia.valorPagoGuias + dia.comissao + cortesias - dia.passagens);
+            }, 0);
+            const pagamentosRecebidos = prestacoes
                 .filter(p =>
                     p.tipo === 'agencia' &&
                     ehAgenciaComissionada(p.nome) &&
@@ -762,22 +845,25 @@
                     p.dataMovimento >= dataInicio &&
                     p.dataMovimento <= dataFim
                 )
-                .reduce((total, p) => total + Math.max(0, Number(p.valor) || 0), 0);
-            const totalPagamentos = creditoDisponivel;
+                .reduce((total, p) => total + Math.max(0, valorAssinadoPagamentoJardas(p)), 0);
+            let creditoDisponivel = creditoOperacional + pagamentosRecebidos;
+            const totalPagamentos = pagamentosRecebidos;
             const porData = {};
 
             Object.entries(dias)
                 .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
                 .forEach(([data, dia]) => {
-                    const passagens = (dia.adultos * config.adulto) + (dia.criancas * config.crianca);
-                    const comissao = dia.adultos * config.comissao;
-                    const cortesias = obterCortesiasDiariasJardas(data, dia.adultos).valor;
+                    const passagens = dia.passagens;
+                    const comissao = dia.comissao;
+                    const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor;
+                    const creditoDoDia = Math.max(0, dia.valorPagoGuias + comissao + cortesias - passagens);
                     const valorDevido = Math.max(0, passagens - dia.valorPagoGuias - comissao - cortesias);
                     const valorAbatido = Math.min(valorDevido, creditoDisponivel);
                     const restante = Math.max(0, valorDevido - valorAbatido);
                     creditoDisponivel = Math.max(0, creditoDisponivel - valorAbatido);
                     porData[data] = {
                         valorDevido,
+                        creditoDoDia,
                         valorAbatido,
                         restante,
                         quitado: valorDevido > 0 && restante < 0.01,
@@ -785,11 +871,12 @@
                     };
                 });
 
-            return { porData, totalPagamentos, creditoSobrando: creditoDisponivel };
+            return { porData, totalPagamentos, creditoOperacional, creditoSobrando: creditoDisponivel };
         }
 
         function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
             if (!dataFim || dataFim < inicioCortesiasAutomaticasJardas) return 0;
+            if (!prestacaoIgnoradaId && cacheSaldoJardas.has(dataFim)) return cacheSaldoJardas.get(dataFim);
 
             const prestacoesJardas = prestacoes
                 .filter(p =>
@@ -818,7 +905,10 @@
             const dataInicio = ultimoFechamento
                 ? deslocarData(ultimoFechamento.dataMovimento, 1)
                 : inicioCortesiasAutomaticasJardas;
-            if (dataInicio > dataFim) return saldo;
+            if (dataInicio > dataFim) {
+                if (!prestacaoIgnoradaId) cacheSaldoJardas.set(dataFim, saldo);
+                return saldo;
+            }
 
             const dias = {};
             registrosGuias
@@ -828,25 +918,30 @@
                     registro.data <= dataFim
                 )
                 .forEach(registro => {
-                    if (!dias[registro.data]) dias[registro.data] = { adultos: 0, criancas: 0, valorPago: 0 };
+                    if (!dias[registro.data]) dias[registro.data] = { adultos: 0, criancas: 0, valorPago: 0, passagens: 0, comissao: 0, valorAdulto: 0 };
                     dias[registro.data].adultos += Number(registro.adultos) || 0;
                     dias[registro.data].criancas += Number(registro.criancas) || 0;
                     dias[registro.data].valorPago += Number(registro.valorPago) || 0;
+                    dias[registro.data].passagens += valorFaturamentoRegistro(registro);
+                    dias[registro.data].comissao += valorComissaoRegistro(registro);
+                    if (!dias[registro.data].valorAdulto) dias[registro.data].valorAdulto = valorAdultoRegistro(registro);
                 });
 
             Object.entries(dias)
                 .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
                 .forEach(([data, dia]) => {
-                    const passagens = (dia.adultos * config.adulto) + (dia.criancas * config.crianca);
-                    const comissao = dia.adultos * config.comissao;
-                    const cortesias = obterCortesiasDiariasJardas(data, dia.adultos);
+                    const passagens = dia.passagens;
+                    const comissao = dia.comissao;
+                    const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto);
                     saldo += dia.valorPago + comissao + cortesias.valor - passagens;
                 });
 
             const movimentoPagamentos = prestacoesJardas
                 .filter(p => p.dataMovimento >= dataInicio && p.dataMovimento <= dataFim)
                 .reduce((total, p) => total + valorAssinadoPagamentoJardas(p), 0);
-            return saldo + movimentoPagamentos;
+            const saldoFinal = saldo + movimentoPagamentos;
+            if (!prestacaoIgnoradaId) cacheSaldoJardas.set(dataFim, saldoFinal);
+            return saldoFinal;
         }
 
         function atualizarCampoValorPagoGuia() {
@@ -866,8 +961,25 @@
                 : 0;
         }
 
+        function valorFaturamentoRegistro(registro) {
+            const salvo = Number(registro?.faturamento);
+            if (Number.isFinite(salvo)) return salvo;
+            const valorAdulto = Number(registro?.valorAdultoAplicado) || 60;
+            const valorCrianca = Number(registro?.valorCriancaAplicado) || 35;
+            return ((Number(registro?.adultos) || 0) * valorAdulto) +
+                ((Number(registro?.criancas) || 0) * valorCrianca);
+        }
+
+        function valorAdultoRegistro(registro) {
+            return Number(registro?.valorAdultoAplicado) || 60;
+        }
+
         function valorComissaoRegistro(registro) {
-            return calcularComissaoAgencia(registro.agencia, registro.adultos);
+            if (!ehAgenciaComissionada(registro?.agencia)) return 0;
+            const salva = Number(registro?.comissao);
+            if (Number.isFinite(salva)) return salva;
+            const taxa = Number(registro?.comissaoPorAdultoAplicada) || 5;
+            return (Number(registro?.adultos) || 0) * taxa;
         }
 
         function formatarValorCurto(valor) {
@@ -885,12 +997,12 @@
             return `${guia.nome}  ${guia.adultos} pax${criancas}${pagamento}`;
         }
 
-        function criarArquivoVoucherJardas(voucher) {
+        function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
             const largura = 1080;
             const margem = 64;
             const alturaCabecalho = 230;
             const alturasDias = voucher.dias.map(dia => 560 + (dia.guias.length * 58));
-            const alturaResumo = voucher.dias.length > 1 ? 600 : 280;
+            const alturaResumo = voucher.dias.length > 1 ? 660 : 280;
             const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
             const canvas = document.createElement('canvas');
             canvas.width = largura;
@@ -946,7 +1058,11 @@
                 ctx.stroke();
 
                 desenharLinha(
-                    dia.fechamentoNoDia ? 'Fechamento realizado = contas zeradas' : `Valor devido do dia = ${formatarValorCurto(dia.valorDevido)}`,
+                    dia.fechamentoNoDia
+                        ? 'Fechamento realizado = contas zeradas'
+                        : (dia.creditoDoDia > 0
+                            ? `Crédito gerado no dia = ${formatarValorCurto(dia.creditoDoDia)}`
+                            : `Valor devido do dia = ${formatarValorCurto(dia.valorDevido)}`),
                     margem + 34,
                     linhaY + 30,
                     28,
@@ -983,9 +1099,10 @@
                 desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 174, 30);
                 desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 232, 30);
                 desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 290, 30);
-                if (voucher.valorPago > 0) desenharLinha(`Pagamentos = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 348, 30);
-                desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY + 414, 30, '#475569', true);
-                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 482, 46, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
+                desenharLinha(`Pagamentos de guias = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 348, 30);
+                desenharLinha(`Pagamentos abatidos = ${formatarValorCurto(voucher.valorAbatido)}`, margem + 34, resumoY + 396, 30);
+                desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY + 454, 30, '#475569', true);
+                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 522, 46, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
             } else {
                 ctx.fillStyle = '#dcfce7';
                 ctx.beginPath();
@@ -1000,7 +1117,23 @@
             const binario = atob(dataUrl.split(',')[1]);
             const bytes = new Uint8Array(binario.length);
             for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
-            return new File([bytes], `voucher-jardas-${voucher.dataInicio}-${voucher.dataFim}.png`, { type: 'image/png' });
+            return new File([bytes], `voucher-jardas-${voucher.dataInicio}-${voucher.dataFim}${sufixoArquivo}.png`, { type: 'image/png' });
+        }
+
+        function criarArquivosVoucherJardas(voucher) {
+            const diasPorPagina = 5;
+            if (voucher.dias.length <= diasPorPagina) return [criarArquivoVoucherJardas(voucher)];
+            const arquivos = [];
+            const totalPaginas = Math.ceil(voucher.dias.length / diasPorPagina);
+            for (let inicio = 0; inicio < voucher.dias.length; inicio += diasPorPagina) {
+                const numeroPagina = Math.floor(inicio / diasPorPagina) + 1;
+                const voucherPagina = {
+                    ...voucher,
+                    dias: voucher.dias.slice(inicio, inicio + diasPorPagina)
+                };
+                arquivos.push(criarArquivoVoucherJardas(voucherPagina, `-pagina-${numeroPagina}-de-${totalPaginas}`));
+            }
+            return arquivos;
         }
 
         async function compartilharVoucherJardas(voucherId, botao) {
@@ -1010,16 +1143,20 @@
             botao.disabled = true;
             botao.innerText = 'Criando voucher...';
             try {
-                const arquivo = criarArquivoVoucherJardas(voucher);
-                if (navigator.share && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
-                    await navigator.share({ files: [arquivo], title: 'Contas Jardas' });
+                const arquivos = criarArquivosVoucherJardas(voucher);
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: arquivos })) {
+                    await navigator.share({ files: arquivos, title: 'Contas Jardas' });
                 } else {
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(arquivo);
-                    link.download = arquivo.name;
-                    link.click();
-                    setTimeout(() => URL.revokeObjectURL(link.href), 3000);
-                    alert('A imagem do voucher foi baixada. Agora envie essa imagem pelo WhatsApp.');
+                    arquivos.forEach((arquivo, indice) => {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(arquivo);
+                        link.download = arquivo.name;
+                        setTimeout(() => {
+                            link.click();
+                            setTimeout(() => URL.revokeObjectURL(link.href), 3000);
+                        }, indice * 350);
+                    });
+                    alert(`${arquivos.length} imagem${arquivos.length === 1 ? '' : 'ns'} do voucher ${arquivos.length === 1 ? 'foi baixada' : 'foram baixadas'}. Agora envie pelo WhatsApp.`);
                 }
             } catch (error) {
                 if (error.name !== 'AbortError') alert('Não foi possível compartilhar o voucher: ' + error.message);
@@ -1288,7 +1425,7 @@
                 indicator.innerText = '✅ Online';
             } else {
                 indicator.className = 'sync-indicator sync-offline';
-                indicator.innerText = '⏳ Sincronizando...';
+                indicator.innerText = '📴 Offline';
             }
         }
 
@@ -1323,6 +1460,14 @@
             document.getElementById('dataFim').value = dataLocalHoje();
             atualizarTela();
         }
+
+        function agendarAtualizacaoTela() {
+            clearTimeout(temporizadorAtualizacao);
+            temporizadorAtualizacao = setTimeout(() => atualizarTela(), 80);
+        }
+
+        window.addEventListener('online', () => atualizarIndicadorSync(true));
+        window.addEventListener('offline', () => atualizarIndicadorSync(false));
 
         function calcularValorJacilene(adultos) {
             const totalAdultos = Number(adultos) || 0;
@@ -1546,56 +1691,70 @@
         document.getElementById('jacileneDataFim').value = dataLocalHoje();
 
         // CARREGAR DADOS DO FIREBASE
+        function encerrarCarregamentoDados() {
+            canceladoresSnapshot.forEach(cancelar => {
+                try { cancelar(); } catch (erro) { console.warn('Falha ao encerrar sincronização:', erro); }
+            });
+            canceladoresSnapshot = [];
+        }
+
         function carregarDados() {
+            encerrarCarregamentoDados();
             try {
-                db.collection('registrosGuias').onSnapshot((snapshot) => {
+                canceladoresSnapshot.push(db.collection('registrosGuias').onSnapshot((snapshot) => {
                     try {
                         registrosGuias = [];
                         snapshot.forEach((doc) => {
                             registrosGuias.push({ id: doc.id, ...doc.data() });
                         });
-                        atualizarTela();
-                        atualizarIndicadorSync(true);
+                        agendarAtualizacaoTela();
+                        atualizarIndicadorSync(navigator.onLine);
                     } catch (err) {
                         console.error('Erro ao processar guias:', err);
                     }
                 }, (error) => {
                     console.error('Erro ao carregar guias:', error);
                     atualizarIndicadorSync(false);
-                });
+                }));
 
-                db.collection('registrosEmbarcacoes').onSnapshot((snapshot) => {
+                canceladoresSnapshot.push(db.collection('registrosEmbarcacoes').onSnapshot((snapshot) => {
                     try {
                         registrosEmbarcacoes = [];
                         snapshot.forEach((doc) => {
                             registrosEmbarcacoes.push({ id: doc.id, ...doc.data() });
                         });
-                        atualizarTela();
-                        atualizarIndicadorSync(true);
+                        agendarAtualizacaoTela();
+                        atualizarIndicadorSync(navigator.onLine);
                     } catch (err) {
                         console.error('Erro ao processar embarcações:', err);
                     }
                 }, (error) => {
                     console.error('Erro ao carregar embarcações:', error);
                     atualizarIndicadorSync(false);
-                });
+                }));
 
                 // NOVO: Carregar Prestações
-                db.collection('prestacoes').onSnapshot((snapshot) => {
+                canceladoresSnapshot.push(db.collection('prestacoes').onSnapshot((snapshot) => {
                     try {
                         prestacoes = [];
                         snapshot.forEach((doc) => {
                             prestacoes.push({ id: doc.id, ...doc.data() });
                         });
-                        atualizarTela();
+                        agendarAtualizacaoTela();
                     } catch (err) {
                         console.error('Erro ao processar prestações:', err);
                     }
                 }, (error) => {
                     console.error('Erro ao carregar prestações:', error);
-                });
+                }));
 
-                db.collection('config').doc('principal').onSnapshot((doc) => {
+                canceladoresSnapshot.push(db.collection('historicoExclusoes').onSnapshot((snapshot) => {
+                    historicoExclusoes = [];
+                    snapshot.forEach(doc => historicoExclusoes.push({ id: doc.id, ...doc.data() }));
+                    atualizarHistorico();
+                }, (error) => console.error('Erro ao carregar histórico de exclusões:', error)));
+
+                canceladoresSnapshot.push(db.collection('config').doc('principal').onSnapshot((doc) => {
                     try {
                         if (doc.exists) {
                             config = doc.data();
@@ -1606,7 +1765,7 @@
                     }
                 }, (error) => {
                     console.error('Erro ao carregar config:', error);
-                });
+                }));
             } catch (err) {
                 console.error('Erro geral ao carregar:', err);
             }
@@ -1657,9 +1816,12 @@
         }
 
         function salvarGuia() {
-            const data = dataGlobal;
+            const registroExistente = guiaEmEdicaoId
+                ? registrosGuias.find(item => item.id === guiaEmEdicaoId)
+                : null;
+            const data = registroExistente?.data || dataGlobal;
             const guia = document.getElementById('nomeGuia').value.trim();
-            const agencia = document.getElementById('agenciaGuia').value.trim();
+            let agencia = document.getElementById('agenciaGuia').value.trim();
             const formaPagamento = document.getElementById('formaPagamentoGuia').value;
             let valorPago = obterValorMonetario('valorPagoGuia');
             const ad = obterNumero('adultosGuia');
@@ -1669,6 +1831,12 @@
             const alm = obterNumero('almocaramGuia');
 
             if (!guia || !agencia) return alert('Preencha Guia e Agência!');
+            if (pareceAgenciaJardas(agencia)) {
+                const corrigir = confirm(`A agência “${agencia}” é parecida com Jardas.\n\nOK = corrigir para Jardas\nCancelar = voltar e revisar o nome`);
+                if (!corrigir) return document.getElementById('agenciaGuia').focus();
+                agencia = 'Jardas';
+                document.getElementById('agenciaGuia').value = agencia;
+            }
             if (!formaPagamento) return alert('Selecione a forma de pagamento!');
             if (formaPagamento === 'nao-pagou') {
                 valorPago = 0;
@@ -1677,11 +1845,15 @@
             }
 
             const totalEmbarque = ad + cr + bb + cort;
-            const faturamento = (ad * config.adulto) + (cr * config.crianca);
-            const comissao = calcularComissaoAgencia(agencia, ad);
-            const registroExistente = guiaEmEdicaoId
-                ? registrosGuias.find(item => item.id === guiaEmEdicaoId)
-                : null;
+            const valorAdultoAplicado = registroExistente?.valorAdultoAplicado ?? 60;
+            const valorCriancaAplicado = registroExistente?.valorCriancaAplicado ?? 35;
+            const comissaoPorAdultoAplicada = registroExistente?.comissaoPorAdultoAplicada ?? 5;
+            const tarifasNovas = !registroExistente;
+            const faturamento = (ad * (tarifasNovas ? config.adulto : valorAdultoAplicado)) +
+                (cr * (tarifasNovas ? config.crianca : valorCriancaAplicado));
+            const comissao = ehAgenciaComissionada(agencia)
+                ? ad * (tarifasNovas ? config.comissao : comissaoPorAdultoAplicada)
+                : 0;
             const dadosRegistro = {
                 data,
                 hora: registroExistente?.hora || new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
@@ -1689,6 +1861,9 @@
                 adultos: ad, criancas: cr, bebes: bb, cortesia: cort,
                 almocaram: alm,
                 faturamento, comissao,
+                valorAdultoAplicado: tarifasNovas ? config.adulto : valorAdultoAplicado,
+                valorCriancaAplicado: tarifasNovas ? config.crianca : valorCriancaAplicado,
+                comissaoPorAdultoAplicada: tarifasNovas ? config.comissao : comissaoPorAdultoAplicada,
                 totalPax: totalEmbarque
             };
 
@@ -1720,6 +1895,9 @@
             const cort = obterNumero('cortesiaBarco');
 
             if (!barco) return alert('Preencha o Catamarã!');
+            if (registrosEmbarcacoes.some(registro => registro.data === data && mesmaEmbarcacao(registro.catamaran, barco))) {
+                return alert(`Já existe um lançamento de ${barco} em ${formatarDataRelatorio(data)}. Para corrigir, exclua o lançamento existente antes de cadastrar novamente.`);
+            }
 
             const totalPax = ad + cr + bb + cort;
             if (totalPax <= 0) return alert('Informe pelo menos uma pessoa.');
@@ -1731,6 +1909,8 @@
                 catamaran: barco,
                 adultos: ad, criancas: cr, bebes: bb, cortesia: cort,
                 totalPax, valorRepasse: faturamento,
+                valorAdultoAplicado: config.adulto,
+                valorCriancaAplicado: config.crianca,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
 
@@ -1834,10 +2014,11 @@
         function atualizarCampoSaldoPrestacao() {
             if (!pagamentoEmEdicao || pagamentoEmEdicao.tipo !== 'agencia') return;
             const valorDigitado = Number(String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.')) || 0;
-            const saldoAutomatico = calcularSaldoJardasAte(
+            const saldoAntes = calcularSaldoJardasAte(
                 pagamentoEmEdicao.dataMovimento,
                 pagamentoEmEdicao.prestacaoId
-            ) + valorDigitado;
+            );
+            const saldoAutomatico = aplicarPagamentoAoSaldo(saldoAntes, valorDigitado);
             const tipoSaldo = saldoAutomatico < -0.009
                 ? 'jardas-deve'
                 : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
@@ -1908,7 +2089,11 @@
 
             document.getElementById('pagamento-dica').innerText = tipo === 'catamara'
                 ? 'Para pagamento parcial, digite uma parte do saldo. O restante continuará pendente nesta data.'
-                : 'Digite qualquer valor pago agora. Pode ser uma parte ou um valor maior, que será abatido do saldo antigo.';
+                : (saldoAntes < -0.009
+                    ? 'O Jardas está devendo. Este pagamento será registrado como valor recebido dele e abatido das dívidas mais antigas.'
+                    : (saldoAntes > 0.009
+                        ? 'Nós estamos devendo ao Jardas. Este pagamento será registrado como valor pago a ele e reduzirá esse saldo.'
+                        : 'O saldo está zerado e não há valor para abater.'));
             document.getElementById('pagamento-observacao').value = existente?.observacao || '';
             document.getElementById('pagamento-titulo').innerText = tipo === 'agencia' ? 'Registrar pagamento Jardas' : 'Registrar pagamento';
             document.getElementById('pagamento-subtitulo').innerText = tipo === 'agencia'
@@ -1947,22 +2132,27 @@
 
             const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
             const valorPagamento = Number(valorDigitado);
+            if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
+                return alert('Informe um valor de pagamento maior que zero.');
+            }
 
             let saldoDeclaradoTipo = null;
             let saldoDeclaradoValor = 0;
+            let efeitoSaldo = null;
             if (pagamentoEmEdicao.tipo === 'agencia') {
-                const saldoAutomatico = calcularSaldoJardasAte(
+                const saldoAntesPagamento = calcularSaldoJardasAte(
                     pagamentoEmEdicao.dataMovimento,
                     pagamentoEmEdicao.prestacaoId
-                ) + valorPagamento;
+                );
+                if (Math.abs(saldoAntesPagamento) < 0.01 && !pagamentoEmEdicao.prestacaoId) {
+                    return alert('O saldo com o Jardas já está zerado nesta data. Não há valor para abater.');
+                }
+                const saldoAutomatico = aplicarPagamentoAoSaldo(saldoAntesPagamento, valorPagamento);
+                efeitoSaldo = saldoAutomatico - saldoAntesPagamento;
                 saldoDeclaradoTipo = saldoAutomatico < -0.009
                     ? 'jardas-deve'
                     : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
                 saldoDeclaradoValor = Math.abs(saldoAutomatico);
-            }
-
-            if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
-                return alert('Informe um valor de pagamento maior que zero.');
             }
 
             if (pagamentoEmEdicao.tipo === 'catamara' && valorPagamento > pagamentoEmEdicao.valorMaximo + 0.009) {
@@ -1990,6 +2180,7 @@
                 observacao,
                 saldoDeclaradoTipo,
                 saldoDeclaradoValor,
+                efeitoSaldo,
                 dataPrestacao: prestacaoExistente?.dataPrestacao || dataLocalHoje(),
                 horaPrestacao: prestacaoExistente?.horaPrestacao || new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -2025,6 +2216,9 @@
 
         function zerarContasJardasAte(dataCorte) {
             if (!dataCorte) return alert('Escolha a data até a qual deseja fechar as contas.');
+            if (dataCorte > dataLocalHoje()) {
+                return alert('Não é permitido fechar contas em uma data futura. Escolha hoje ou uma data anterior.');
+            }
             if (dataCorte <= dataUltimoFechamentoJardas()) {
                 return alert(`As contas já estão zeradas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}. Escolha uma data posterior.`);
             }
@@ -2070,7 +2264,9 @@
 
         function descricaoPagamentoJardas(prestacao) {
             if (prestacao?.fechamentoGeral) return 'Contas zeradas';
-            return 'Pagamento abatido no saldo';
+            return valorAssinadoPagamentoJardas(prestacao) < 0
+                ? 'Pagamento feito ao Jardas'
+                : 'Pagamento recebido do Jardas';
         }
 
         function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes, baixaJardas = null) {
@@ -2153,9 +2349,28 @@
                 </div>`;
         }
 
+        function dadosAuditoriaExclusao(tipo, registro) {
+            const agora = new Date();
+            const { id, ...dadosOriginais } = registro;
+            return {
+                tipo,
+                registroIdOriginal: id,
+                dados: dadosOriginais,
+                usuario: usuarioAtual?.email || 'usuário autenticado',
+                dataExclusao: dataLocalHoje(),
+                horaExclusao: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+        }
+
         function excluirGuia(id) {
             if (!confirm('Excluir este guia?')) return;
-            db.collection('registrosGuias').doc(id).delete()
+            const registro = registrosGuias.find(item => item.id === id);
+            if (!registro) return alert('Registro não encontrado. Atualize a tela e tente novamente.');
+            const batch = db.batch();
+            batch.set(db.collection('historicoExclusoes').doc(), dadosAuditoriaExclusao('guia', registro));
+            batch.delete(db.collection('registrosGuias').doc(id));
+            batch.commit()
                 .then(() => {
                     if (guiaEmEdicaoId === id) limparFormularioGuia();
                 })
@@ -2164,11 +2379,17 @@
 
         function excluirBarco(id) {
             if (!confirm('Excluir esta embarcação?')) return;
-            db.collection('registrosEmbarcacoes').doc(id).delete()
+            const registro = registrosEmbarcacoes.find(item => item.id === id);
+            if (!registro) return alert('Registro não encontrado. Atualize a tela e tente novamente.');
+            const batch = db.batch();
+            batch.set(db.collection('historicoExclusoes').doc(), dadosAuditoriaExclusao('barco', registro));
+            batch.delete(db.collection('registrosEmbarcacoes').doc(id));
+            batch.commit()
                 .catch((error) => alert('Erro: ' + error.message));
         }
 
         function atualizarTela() {
+            cacheSaldoJardas.clear();
             vouchersJardas = {};
             const guiadosFiltrados = ordenarPorDataHora(
                 registrosGuias.filter(e => e.data === dataGlobal)
@@ -2338,20 +2559,21 @@
                     const agenciaComissionada = 'Jardas';
                     if (!relAge[agenciaComissionada]) relAge[agenciaComissionada] = { pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, dias: {} };
                     if (!relAge[agenciaComissionada].dias[e.data]) {
-                        relAge[agenciaComissionada].dias[e.data] = { pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, guias: [] };
+                        relAge[agenciaComissionada].dias[e.data] = { pax: 0, adultos: 0, criancas: 0, cortesias: 0, passagens: 0, comissao: 0, almocaram: 0, valorPago: 0, valorAdulto: 0, guias: [] };
                     }
 
                     const pax = Number(e.totalPax) || 0;
                     const adultos = Number(e.adultos) || 0;
                     const criancas = Number(e.criancas) || 0;
                     const cortesias = Number(e.cortesia) || 0;
-                    const passagens = (adultos * config.adulto) + (criancas * config.crianca);
+                    const passagens = valorFaturamentoRegistro(e);
                     const comissao = valorComissaoRegistro(e);
                     const almocaram = Number(e.almocaram) || 0;
                     const valorPago = Number(e.valorPago) || 0;
                     const nomeGuia = String(e.guia || '').trim() || 'Guia não informado';
                     const formaPagamento = String(e.formaPagamento || '');
                     const diaAgencia = relAge[agenciaComissionada].dias[e.data];
+                    if (!diaAgencia.valorAdulto) diaAgencia.valorAdulto = valorAdultoRegistro(e);
                     let dadosGuia = diaAgencia.guias.find(item =>
                         chaveAgencia(item.nome) === chaveAgencia(nomeGuia) &&
                         item.formaPagamento === formaPagamento
@@ -2404,9 +2626,11 @@
                     }, 0);
                     const totalAbatidoJardas = resumoAcertosPeriodo;
                     const cortesiasConcedidas = diasDaAgencia.reduce((total, [data, dia]) =>
-                        total + obterCortesiasDiariasJardas(data, dia.adultos).quantidade,
+                        total + obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).quantidade,
+                        0);
+                    const valorCortesiasConcedidas = diasDaAgencia.reduce((total, [data, dia]) =>
+                        total + obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor,
                     0);
-                    const valorCortesiasConcedidas = cortesiasConcedidas * config.adulto;
                     const baixasDiariasJardas = calcularBaixasDiariasJardas(dataFim);
                     const saldoAnteriorPeriodo = ehDataFechamentoJardas(dataInicio)
                         ? 0
@@ -2435,7 +2659,7 @@
                                 return `${guia.nome} ${guia.adultos} pax${criancas}${pagamento}`;
                             })
                             .join('\n');
-                        const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
+                        const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto);
                         const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, valorAbatido: 0, restante: 0 };
                         const fechamentoNoDia = ehDataFechamentoJardas(data);
                         const parcelaPagamento = dia.valorPago > 0 ? ` - ${formatarValorCurto(dia.valorPago)} pago` : '';
@@ -2451,8 +2675,8 @@
                     const textoWhats = `*CONTAS JARDAS*\n${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n\n${detalhesWhats}${resumoPeriodo}`;
                     const linhasDiarias = diasDaAgencia
                         .map(([data, dia]) => {
-                            const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                            const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, valorAbatido: 0, restante: 0, quitado: false, parcial: false };
+                            const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto);
+                            const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, creditoDoDia: 0, valorAbatido: 0, restante: 0, quitado: false, parcial: false };
                             const valorParaRepasse = baixaDia.valorDevido;
                             const fechamentoNoDia = ehDataFechamentoJardas(data);
                             const pagamentosGuias = dia.guias
@@ -2470,7 +2694,7 @@
                                 age,
                                 data,
                                 valorParaRepasse,
-                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}${fechamentoNoDia ? '<div class="mt-1 text-green-700 font-bold">⚖️ Fechamento realizado: contas zeradas nesta data</div>' : ''}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">Valor do dia ${formatarMoeda(baixaDia.valorDevido)} · Baixado ${formatarMoeda(baixaDia.valorAbatido)} · Restante ${formatarMoeda(baixaDia.restante)}</div>`,
+                                `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}${fechamentoNoDia ? '<div class="mt-1 text-green-700 font-bold">⚖️ Fechamento realizado: contas zeradas nesta data</div>' : ''}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">${baixaDia.creditoDoDia > 0 ? `Crédito do dia ${formatarMoeda(baixaDia.creditoDoDia)}` : `Valor do dia ${formatarMoeda(baixaDia.valorDevido)}`} · Baixado ${formatarMoeda(baixaDia.valorAbatido)} · Restante ${formatarMoeda(baixaDia.restante)}</div>`,
                                 baixaDia
                             );
                         })
@@ -2492,8 +2716,8 @@
                         saldoAnterior: saldoAnteriorPeriodo,
                         saldo: saldoLiquido,
                         dias: diasDaAgencia.map(([data, dia]) => {
-                            const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos);
-                            const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, valorAbatido: 0, restante: 0 };
+                            const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto);
+                            const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, creditoDoDia: 0, valorAbatido: 0, restante: 0 };
                             return {
                                 data,
                                 adultos: dia.adultos,
@@ -2505,6 +2729,7 @@
                                 comissao: dia.comissao,
                                 valorPago: dia.valorPago,
                                 valorDevido: baixaDia.valorDevido,
+                                creditoDoDia: baixaDia.creditoDoDia,
                                 valorAbatido: baixaDia.valorAbatido,
                                 restante: baixaDia.restante,
                                 saldoAnterior: saldoAnteriorPorData[data],
@@ -2721,6 +2946,28 @@
                     </div>
                 `).join('');
             }
+
+            const divExclusoes = document.getElementById('historico-exclusoes');
+            if (divExclusoes) {
+                const exclusoesOrdenadas = historicoExclusoes.slice().sort((a, b) =>
+                    `${b.dataExclusao || ''} ${b.horaExclusao || ''}`.localeCompare(`${a.dataExclusao || ''} ${a.horaExclusao || ''}`)
+                );
+                divExclusoes.innerHTML = exclusoesOrdenadas.length === 0
+                    ? '<p class="text-gray-500 text-sm">Nenhum registro excluído.</p>'
+                    : exclusoesOrdenadas.map(item => {
+                        const dados = item.dados || {};
+                        const nome = item.tipo === 'guia' ? dados.guia : nomeCanonicoEmbarcacao(dados.catamaran);
+                        const movimento = dados.data ? formatarDataHistorico(dados.data) : '--';
+                        const resumo = item.tipo === 'guia'
+                            ? `${Number(dados.adultos) || 0} adultos · ${Number(dados.criancas) || 0} crianças · ${formatarMoeda(Number(dados.faturamento) || 0)}`
+                            : `${Number(dados.totalPax) || 0} passageiros · ${formatarMoeda(Number(dados.valorRepasse) || 0)}`;
+                        return `<div class="bg-red-50 border-l-4 border-red-400 rounded p-3 text-sm">
+                            <div class="font-bold">${item.tipo === 'guia' ? 'Guia' : 'Embarcação'}: ${escaparHTML(nome || 'Não informado')}</div>
+                            <div class="text-xs text-gray-700">Movimento de ${movimento} · ${resumo}</div>
+                            <div class="text-xs text-gray-500 mt-1">Excluído em ${formatarDataHistorico(item.dataExclusao)} ${escaparHTML(item.horaExclusao || '')} por ${escaparHTML(item.usuario || 'usuário autenticado')}</div>
+                        </div>`;
+                    }).join('');
+            }
         }
 
         function carregarConfig() {
@@ -2734,9 +2981,15 @@
         }
 
         function salvarConfig() {
-            config.adulto = parseFloat(document.getElementById('cfg-adulto').value) || 60;
-            config.crianca = parseFloat(document.getElementById('cfg-crianca').value) || 35;
-            config.comissao = parseFloat(document.getElementById('cfg-comissao').value) || 5;
+            const novosValores = {
+                adulto: Number(document.getElementById('cfg-adulto').value),
+                crianca: Number(document.getElementById('cfg-crianca').value),
+                comissao: Number(document.getElementById('cfg-comissao').value)
+            };
+            if (Object.values(novosValores).some(valor => !Number.isFinite(valor) || valor < 0)) {
+                return alert('Informe somente valores iguais ou maiores que zero.');
+            }
+            config = novosValores;
             
             db.collection('config').doc('principal').set(config)
                 .then(() => alert('Configurações salvas!'))
@@ -2845,10 +3098,11 @@
 
         function backupDados() {
             const backup = {
-                versao: '2.0',
+                versao: '3.0',
                 registrosGuias,
                 registrosEmbarcacoes,
                 prestacoes,
+                historicoExclusoes,
                 config,
                 dataBackup: new Date().toISOString()
             };
@@ -2857,6 +3111,7 @@
             link.href = URL.createObjectURL(blob);
             link.download = `backup_catamara_${dataLocalHoje()}.json`;
             link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 3000);
         }
 
         function restaurarBackup(event) {
@@ -2868,16 +3123,16 @@
                 try {
                     const data = JSON.parse(e.target.result);
                     
-                    if (!data.registrosGuias || !data.registrosEmbarcacoes) {
+                    if (!validarEstruturaBackup(data)) {
                         alert('Arquivo de backup inválido!');
                         return;
                     }
 
-                    if (!confirm(`Este backup contém:\n\n• ${data.registrosGuias.length} guias\n• ${data.registrosEmbarcacoes.length} embarcações\n• ${(data.prestacoes || []).length} prestações\n• Data: ${new Date(data.dataBackup).toLocaleString('pt-BR')}\n\nEscolha o modo de restauração:\n\nOK = SUBSTITUIR todos os dados atuais\nCANCELAR = MESCLAR (adicionar aos dados atuais)`)) {
-                        mesclarBackup(data);
-                    } else {
-                        substituirBackup(data);
-                    }
+                    const modo = prompt(`Este backup contém:\n\n• ${data.registrosGuias.length} guias\n• ${data.registrosEmbarcacoes.length} embarcações\n• ${(data.prestacoes || []).length} prestações\n• ${(data.historicoExclusoes || []).length} exclusões preservadas\n\nDigite MESCLAR para acrescentar sem duplicar ou SUBSTITUIR para deixar o banco igual ao backup.\n\nPara cancelar, deixe em branco.`);
+                    const escolha = String(modo || '').trim().toLocaleUpperCase('pt-BR');
+                    if (escolha === 'MESCLAR') mesclarBackup(data);
+                    else if (escolha === 'SUBSTITUIR') substituirBackup(data);
+                    else if (escolha) alert('Opção não reconhecida. Nenhum dado foi alterado.');
                 } catch (err) {
                     alert('Erro ao ler o arquivo: ' + err.message);
                 }
@@ -2886,91 +3141,96 @@
             event.target.value = '';
         }
 
-        function substituirBackup(data) {
-            if (!confirm('⚠️ ATENÇÃO: Todos os dados atuais serão APAGADOS e substituídos pelo backup. Continuar?')) return;
+        function validarEstruturaBackup(data) {
+            const objeto = item => item && typeof item === 'object' && !Array.isArray(item);
+            const dataValida = valor => /^\d{4}-\d{2}-\d{2}$/.test(String(valor || ''));
+            const numeroValido = valor => valor === undefined || (Number.isFinite(Number(valor)) && Number(valor) >= 0);
+            const guiaValido = item => objeto(item) && dataValida(item.data) &&
+                typeof item.guia === 'string' && typeof item.agencia === 'string' &&
+                ['adultos', 'criancas', 'bebes', 'cortesia', 'totalPax', 'faturamento', 'valorPago', 'almocaram'].every(chave => numeroValido(item[chave]));
+            const barcoValido = item => objeto(item) && dataValida(item.data) && typeof item.catamaran === 'string' &&
+                ['adultos', 'criancas', 'bebes', 'cortesia', 'totalPax', 'valorRepasse'].every(chave => numeroValido(item[chave]));
+            const prestacaoValida = item => objeto(item) && typeof item.tipo === 'string' && typeof item.nome === 'string' &&
+                numeroValido(item.valor) && (!item.dataMovimento || dataValida(item.dataMovimento));
+            const configValida = !data.config || (objeto(data.config) &&
+                ['adulto', 'crianca', 'comissao'].every(chave => Number.isFinite(Number(data.config[chave])) && Number(data.config[chave]) >= 0));
+            return Boolean(objeto(data) &&
+                Array.isArray(data.registrosGuias) && data.registrosGuias.every(guiaValido) &&
+                Array.isArray(data.registrosEmbarcacoes) && data.registrosEmbarcacoes.every(barcoValido) &&
+                (!data.prestacoes || (Array.isArray(data.prestacoes) && data.prestacoes.every(prestacaoValida))) &&
+                (!data.historicoExclusoes || (Array.isArray(data.historicoExclusoes) && data.historicoExclusoes.every(objeto))) &&
+                configValida);
+        }
 
-            const batchDel1 = db.batch();
-            registrosGuias.forEach(doc => batchDel1.delete(db.collection('registrosGuias').doc(doc.id)));
-            const batchDel2 = db.batch();
-            registrosEmbarcacoes.forEach(doc => batchDel2.delete(db.collection('registrosEmbarcacoes').doc(doc.id)));
-            const batchDel3 = db.batch();
-            prestacoes.forEach(doc => batchDel3.delete(db.collection('prestacoes').doc(doc.id)));
+        function hashBackup(texto) {
+            let hash = 2166136261;
+            for (let i = 0; i < texto.length; i++) {
+                hash ^= texto.charCodeAt(i);
+                hash = Math.imul(hash, 16777619);
+            }
+            return (hash >>> 0).toString(36);
+        }
 
-            Promise.all([batchDel1.commit(), batchDel2.commit(), batchDel3.commit()]).then(() => {
-                const batchGuias = db.batch();
-                data.registrosGuias.forEach(g => {
-                    const { id, timestamp, ...resto } = g;
-                    batchGuias.set(db.collection('registrosGuias').doc(), {
-                        ...resto,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                });
-
-                const batchBarcos = db.batch();
-                data.registrosEmbarcacoes.forEach(b => {
-                    const { id, timestamp, ...resto } = b;
-                    batchBarcos.set(db.collection('registrosEmbarcacoes').doc(), {
-                        ...resto,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                });
-
-                if (data.prestacoes) {
-                    const batchPrestacoes = db.batch();
-                    data.prestacoes.forEach(p => {
-                        const { id, timestamp, ...resto } = p;
-                        batchPrestacoes.set(db.collection('prestacoes').doc(), {
-                            ...resto,
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                    });
-                    batchPrestacoes.commit();
-                }
-
-                if (data.config) {
-                    db.collection('config').doc('principal').set(data.config);
-                }
-
-                Promise.all([batchGuias.commit(), batchBarcos.commit()])
-                    .then(() => alert('✅ Backup restaurado!'))
-                    .catch(err => alert('Erro: ' + err.message));
+        function prepararItensBackup(itens, prefixo) {
+            return (itens || []).map((item, indice) => {
+                const { id, timestamp, atualizadoEm, ...dados } = item;
+                const idEstavel = id || `importado-${prefixo}-${hashBackup(JSON.stringify(dados))}-${indice}`;
+                return { id: idEstavel, dados: { ...dados, timestamp: firebase.firestore.FieldValue.serverTimestamp() } };
             });
         }
 
-        function mesclarBackup(data) {
-            const batchGuias = db.batch();
-            data.registrosGuias.forEach(g => {
-                const { id, timestamp, ...resto } = g;
-                batchGuias.set(db.collection('registrosGuias').doc(), {
-                    ...resto,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            });
-
-            const batchBarcos = db.batch();
-            data.registrosEmbarcacoes.forEach(b => {
-                const { id, timestamp, ...resto } = b;
-                batchBarcos.set(db.collection('registrosEmbarcacoes').doc(), {
-                    ...resto,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            });
-
-            if (data.prestacoes) {
-                const batchPrestacoes = db.batch();
-                data.prestacoes.forEach(p => {
-                    const { id, timestamp, ...resto } = p;
-                    batchPrestacoes.set(db.collection('prestacoes').doc(), {
-                        ...resto,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                });
-                batchPrestacoes.commit();
+        async function gravarEmLotes(nomeColecao, itens, mesclar = true) {
+            for (let inicio = 0; inicio < itens.length; inicio += 400) {
+                const batch = db.batch();
+                itens.slice(inicio, inicio + 400).forEach(item =>
+                    batch.set(db.collection(nomeColecao).doc(item.id), item.dados, { merge: mesclar })
+                );
+                await batch.commit();
             }
+        }
 
-            Promise.all([batchGuias.commit(), batchBarcos.commit()])
-                .then(() => alert('✅ Backup mesclado!'))
-                .catch(err => alert('Erro: ' + err.message));
+        async function excluirEmLotes(nomeColecao, ids) {
+            for (let inicio = 0; inicio < ids.length; inicio += 400) {
+                const batch = db.batch();
+                ids.slice(inicio, inicio + 400).forEach(id => batch.delete(db.collection(nomeColecao).doc(id)));
+                await batch.commit();
+            }
+        }
+
+        function colecoesDoBackup(data) {
+            return [
+                { nome: 'registrosGuias', atuais: registrosGuias, itens: prepararItensBackup(data.registrosGuias, 'guia') },
+                { nome: 'registrosEmbarcacoes', atuais: registrosEmbarcacoes, itens: prepararItensBackup(data.registrosEmbarcacoes, 'barco') },
+                { nome: 'prestacoes', atuais: prestacoes, itens: prepararItensBackup(data.prestacoes || [], 'prestacao') },
+                { nome: 'historicoExclusoes', atuais: historicoExclusoes, itens: prepararItensBackup(data.historicoExclusoes || [], 'exclusao') }
+            ];
+        }
+
+        async function substituirBackup(data) {
+            if (!confirm('Os dados do backup serão enviados primeiro. Somente depois disso os registros que não pertencem ao backup serão removidos. Continuar?')) return;
+            try {
+                const colecoes = colecoesDoBackup(data);
+                for (const colecao of colecoes) await gravarEmLotes(colecao.nome, colecao.itens, false);
+                if (data.config) await db.collection('config').doc('principal').set(data.config);
+                for (const colecao of colecoes) {
+                    const idsBackup = new Set(colecao.itens.map(item => item.id));
+                    const idsRemover = colecao.atuais.map(item => item.id).filter(id => !idsBackup.has(id));
+                    await excluirEmLotes(colecao.nome, idsRemover);
+                }
+                alert('✅ Backup restaurado com segurança!');
+            } catch (erro) {
+                alert('A restauração não foi concluída. Os dados antigos não foram apagados antes do envio. Erro: ' + erro.message);
+            }
+        }
+
+        async function mesclarBackup(data) {
+            try {
+                for (const colecao of colecoesDoBackup(data)) await gravarEmLotes(colecao.nome, colecao.itens);
+                if (data.config) await db.collection('config').doc('principal').set(data.config, { merge: true });
+                alert('✅ Backup mesclado sem duplicar os mesmos registros!');
+            } catch (erro) {
+                alert('A mesclagem não foi concluída: ' + erro.message);
+            }
         }
 
         function abrirTab(tab) {
@@ -2981,23 +3241,90 @@
             if (tab === 'jacilene') atualizarJacilene();
         }
 
-        function limparTudo() {
-            if (!confirm('⚠️ ATENÇÃO: Apagar TODOS os dados?')) return;
-            if (!confirm('⚠️ ÚLTIMA CHANCE: Realmente apagar tudo?')) return;
-
-            const batch1 = db.batch();
-            registrosGuias.forEach(doc => batch1.delete(db.collection('registrosGuias').doc(doc.id)));
-            const batch2 = db.batch();
-            registrosEmbarcacoes.forEach(doc => batch2.delete(db.collection('registrosEmbarcacoes').doc(doc.id)));
-            const batch3 = db.batch();
-            prestacoes.forEach(doc => batch3.delete(db.collection('prestacoes').doc(doc.id)));
-
-            Promise.all([batch1.commit(), batch2.commit(), batch3.commit()])
-                .then(() => alert('Dados apagados.'))
-                .catch(err => alert('Erro: ' + err.message));
+        function mensagemErroLogin(erro) {
+            const mensagens = {
+                'auth/invalid-credential': 'Login ou senha incorretos.',
+                'auth/user-not-found': 'Login ou senha incorretos.',
+                'auth/wrong-password': 'Login ou senha incorretos.',
+                'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+                'auth/network-request-failed': 'Sem conexão. Verifique a internet e tente novamente.'
+            };
+            return mensagens[erro?.code] || 'Não foi possível entrar. Confira o login e a senha.';
         }
 
-        carregarDados();
+        function entrarNoApp(event) {
+            event.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            const senha = document.getElementById('auth-senha').value;
+            const erroElemento = document.getElementById('auth-erro');
+            const botao = document.getElementById('auth-entrar');
+            erroElemento.classList.add('hidden');
+            botao.disabled = true;
+            botao.innerText = 'Entrando...';
+
+            firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+                .then(() => firebase.auth().signInWithEmailAndPassword(email, senha))
+                .catch(erro => {
+                    erroElemento.innerText = mensagemErroLogin(erro);
+                    erroElemento.classList.remove('hidden');
+                })
+                .finally(() => {
+                    botao.disabled = false;
+                    botao.innerText = 'Entrar';
+                });
+        }
+
+        function sairDoApp() {
+            if (!confirm('Sair do Controle Catamarã neste aparelho?')) return;
+            firebase.auth().signOut();
+        }
+
+        function enviarLinkSenha() {
+            const email = document.getElementById('auth-email').value.trim();
+            const mensagem = document.getElementById('auth-erro');
+            if (!email) {
+                mensagem.className = 'text-sm text-red-600 font-semibold mb-3';
+                mensagem.innerText = 'Informe o e-mail do login para receber o link.';
+                return;
+            }
+            firebase.auth().sendPasswordResetEmail(email)
+                .then(() => {
+                    mensagem.className = 'text-sm text-green-700 font-semibold mb-3';
+                    mensagem.innerText = 'Link enviado. Confira também a caixa de spam do e-mail.';
+                })
+                .catch(erro => {
+                    mensagem.className = 'text-sm text-red-600 font-semibold mb-3';
+                    mensagem.innerText = mensagemErroLogin(erro);
+                });
+        }
+
+        firebase.auth().onAuthStateChanged(async usuario => {
+            usuarioAtual = usuario || null;
+            const telaLogin = document.getElementById('auth-screen');
+            if (usuario) {
+                try {
+                    const acesso = await db.collection('usuariosAutorizados').doc(usuario.uid).get();
+                    if (!acesso.exists) throw new Error('Conta sem autorização para este aplicativo.');
+                    document.body.classList.remove('auth-pendente');
+                    telaLogin.classList.add('hidden');
+                    carregarDados();
+                } catch (erro) {
+                    const erroElemento = document.getElementById('auth-erro');
+                    erroElemento.innerText = erro.message || 'Esta conta não está autorizada.';
+                    erroElemento.classList.remove('hidden');
+                    await firebase.auth().signOut();
+                }
+            } else {
+                encerrarCarregamentoDados();
+                registrosGuias = [];
+                registrosEmbarcacoes = [];
+                prestacoes = [];
+                historicoExclusoes = [];
+                document.body.classList.add('auth-pendente');
+                telaLogin.classList.remove('hidden');
+                document.getElementById('auth-senha').value = '';
+            }
+        });
     </script>
 </body>
 </html>
