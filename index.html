@@ -1156,6 +1156,7 @@
         }
 
         async function compartilharVoucherJardas(voucherId, botao) {
+            atualizarTela();
             const voucher = vouchersJardas[voucherId];
             if (!voucher) return alert('Gere o relatório novamente para criar o voucher.');
             const textoOriginal = botao.innerText;
