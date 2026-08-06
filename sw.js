@@ -1,4 +1,4 @@
-const CACHE_NAME = 'catamara-v19';
+const CACHE_NAME = 'catamara-v20';
 const arquivosEssenciais = [
   './',
   './index.html',

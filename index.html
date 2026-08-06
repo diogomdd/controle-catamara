@@ -1002,7 +1002,7 @@
             const margem = 64;
             const alturaCabecalho = 230;
             const alturasDias = voucher.dias.map(dia => 560 + (dia.guias.length * 58));
-            const alturaResumo = voucher.dias.length > 1 ? 660 : 280;
+            const alturaResumo = voucher.dias.length > 1 ? 660 : 460;
             const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
             const canvas = document.createElement('canvas');
             canvas.width = largura;
@@ -1108,9 +1108,26 @@
                 ctx.beginPath();
                 ctx.roundRect(margem, y, largura - (margem * 2), alturaResumo - 30, 24);
                 ctx.fill();
-                const resumoY = y + 76;
-                desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY, 34, '#14532d', true);
-                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 84, 48, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
+                const resumoY = y + 58;
+                const dataSaldoAnterior = deslocarData(voucher.dataInicio, -1);
+                const movimentoDoDia = voucher.saldo - voucher.saldoAnterior;
+                desenharLinha('COMPOSIÇÃO DO SALDO', margem + 34, resumoY, 34, '#14532d', true);
+                desenharLinha(
+                    `Saldo acumulado até ${formatarDataRelatorio(dataSaldoAnterior)} = ${situacaoSaldoJardas(voucher.saldoAnterior).texto}`,
+                    margem + 34,
+                    resumoY + 64,
+                    28,
+                    '#475569'
+                );
+                desenharLinha(
+                    `Movimento de ${formatarDataRelatorio(voucher.dataInicio)} = ${situacaoSaldoJardas(movimentoDoDia).texto}`,
+                    margem + 34,
+                    resumoY + 122,
+                    28,
+                    '#475569'
+                );
+                desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY + 206, 30, '#475569', true);
+                desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 282, 48, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
             }
 
             const dataUrl = canvas.toDataURL('image/png');
@@ -2647,6 +2664,7 @@
                             saldoAposPorData[data] = calcularSaldoJardasAte(data);
                         });
                     const saldoLiquido = calcularSaldoJardasAte(dataFim);
+                    const movimentoPeriodo = saldoLiquido - saldoAnteriorPeriodo;
                     const situacaoPeriodo = situacaoSaldoJardas(saldoLiquido);
                     const detalhesWhats = diasDaAgencia.map(([data, dia]) => {
                         const guiasDoDia = dia.guias
@@ -2748,8 +2766,12 @@
                                 <div class="font-bold text-purple-800">${escaparHTML(age)}</div>
                                 <div class="text-xs text-gray-500">👨 ${d.adultos} adultos · ${d.criancas} crianças</div>
                                 <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
-                                    <span>Saldo anterior</span>
+                                    <span>Saldo acumulado até ${formatarDataRelatorio(deslocarData(dataInicio, -1))}</span>
                                     <strong>${situacaoSaldoJardas(saldoAnteriorPeriodo).texto}</strong>
+                                </div>
+                                <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
+                                    <span>${dataInicio === dataFim ? `Movimento de ${formatarDataRelatorio(dataInicio)}` : 'Movimento do período'}</span>
+                                    <strong>${situacaoSaldoJardas(movimentoPeriodo).texto}</strong>
                                 </div>
                                 <div class="bg-green-50 border border-green-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
                                     <span>Cortesias concedidas no período</span>
