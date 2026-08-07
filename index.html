@@ -812,41 +812,68 @@ function calcularBaixasDiariasJardas(dataFim) {
   registrosGuias
     .filter(registro => ehAgenciaComissionada(registro.agencia) && dataValidaISO(registro.data) && registro.data >= dataInicio && registro.data <= dataFim)
     .forEach(registro => {
-      if (!dias[registro.data]) {
-        dias[registro.data] = { adultos: 0, criancas: 0, valorPagoGuias: 0, passagens: 0, comissao: 0, valorAdulto: 0 };
-      }
+      if (!dias[registro.data]) dias[registro.data] = { adultos: 0, criancas: 0, valorPagoGuias: 0, passagens: 0, comissao: 0, valorAdulto: 0 };
       dias[registro.data].adultos += Number(registro.adultos) || 0;
       dias[registro.data].criancas += Number(registro.criancas) || 0;
-      dias[registro.data].valorPagoGuias = somarMoeda(dias[registro.data].valorPagoGuias, registro.valorPago);
+      dias[registro.data].valorPagoGuias = somarMoeda(dias[registro.data].valorPagoGuias, Number(registro.valorPago) || 0);
       dias[registro.data].passagens = somarMoeda(dias[registro.data].passagens, valorFaturamentoRegistro(registro));
       dias[registro.data].comissao = somarMoeda(dias[registro.data].comissao, valorComissaoRegistro(registro));
       if (!dias[registro.data].valorAdulto) dias[registro.data].valorAdulto = valorAdultoRegistro(registro);
     });
-  const creditoOperacional = arredondar2(Object.entries(dias).reduce((total, [data, dia]) => {
-    const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor;
-    const creditoDia = somarMoeda(dia.valorPagoGuias, dia.comissao, cortesias) - dia.passagens;
-    return somarMoeda(total, Math.max(0, creditoDia));
-  }, 0));
+
+  // CORREÇÃO: Processar crédito em ordem cronológica, dia a dia
+  let creditoDisponivel = 0;
   const pagamentosRecebidos = prestacoes
     .filter(p => p.tipo === 'agencia' && ehAgenciaComissionada(p.nome) && !p.fechamentoGeral && dataValidaISO(p.dataMovimento) && p.dataMovimento >= dataInicio && p.dataMovimento <= dataFim)
     .reduce((total, p) => somarMoeda(total, Math.max(0, valorAssinadoPagamentoJardas(p))), 0);
-  let creditoDisponivel = somarMoeda(creditoOperacional, pagamentosRecebidos);
+
+  creditoDisponivel = pagamentosRecebidos;
   const totalPagamentos = pagamentosRecebidos;
   const porData = {};
+  let creditoOperacionalTotal = 0;
+
   Object.entries(dias)
     .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
     .forEach(([data, dia]) => {
       const passagens = arredondar2(dia.passagens);
       const comissao = arredondar2(dia.comissao);
       const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor;
-      const creditoDoDia = arredondar2(Math.max(0, somarMoeda(dia.valorPagoGuias, comissao, cortesias) - passagens));
-      const valorDevido = arredondar2(Math.max(0, passagens - somarMoeda(dia.valorPagoGuias, comissao, cortesias)));
+      const valorPagoGuias = arredondar2(dia.valorPagoGuias);
+
+      // Calcula o resultado do dia
+      const resultadoDia = arredondar2(valorPagoGuias + comissao + cortesias - passagens);
+
+      let creditoDoDia = 0;
+      let valorDevido = 0;
+
+      if (resultadoDia > 0.009) {
+        // Dia com crédito (Jardas tem crédito conosco)
+        creditoDoDia = resultadoDia;
+        creditoOperacionalTotal = somarMoeda(creditoOperacionalTotal, creditoDoDia);
+        creditoDisponivel = somarMoeda(creditoDisponivel, creditoDoDia);
+        valorDevido = 0;
+      } else if (resultadoDia < -0.009) {
+        // Dia com dívida (Jardas nos deve)
+        valorDevido = arredondar2(Math.abs(resultadoDia));
+        creditoDoDia = 0;
+      }
+
+      // Abate a dívida com o crédito disponível ACUMULADO ATÉ ESTE DIA
       const valorAbatido = arredondar2(Math.min(valorDevido, creditoDisponivel));
       const restante = arredondar2(Math.max(0, valorDevido - valorAbatido));
       creditoDisponivel = arredondar2(Math.max(0, creditoDisponivel - valorAbatido));
-      porData[data] = { valorDevido, creditoDoDia, valorAbatido, restante, quitado: valorDevido > 0 && restante < 0.01, parcial: valorAbatido > 0 && restante >= 0.01 };
+
+      porData[data] = {
+        valorDevido,
+        creditoDoDia,
+        valorAbatido,
+        restante,
+        quitado: valorDevido > 0 && restante < 0.01,
+        parcial: valorAbatido > 0 && restante >= 0.01
+      };
     });
-  return { porData, totalPagamentos, creditoOperacional, creditoSobrando: creditoDisponivel };
+
+  return { porData, totalPagamentos, creditoOperacional: creditoOperacionalTotal, creditoSobrando: creditoDisponivel };
 }
 
 function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
