@@ -220,8 +220,16 @@ function situacaoSaldoJardas(saldo) {
 
 function calcularCortesiasJardas(adultos) {
   const quantidade = Math.max(0, Math.floor(Number(adultos) || 0));
+
+  // Menos de 15 adultos não gera cortesia
+  if (quantidade < 15) return 0;
+
+  // A cada 20 adultos: 2 cortesias
   const gruposDeVinte = Math.floor(quantidade / 20);
+
+  // Se sobrar 15 ou mais adultos: +1 cortesia
   const restante = quantidade % 20;
+
   return (gruposDeVinte * 2) + (restante >= 15 ? 1 : 0);
 }
 
