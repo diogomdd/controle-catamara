@@ -1,5 +1,519 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Controle Catamarã</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2563eb">
+<style>
+html { min-height: 100%; overscroll-behavior-y: none; }
+body {
+  font-family: sans-serif;
+  min-height: 100%;
+  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  background-color: #f3f4f6;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+.app-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  z-index: 50;
+  padding-top: 8px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+}
+.tab-active { background-color: #2563eb; color: white; }
+.btn-add { background-color: #10b981; color: white; }
+.btn-boat { background-color: #3b82f6; color: white; }
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+.card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.btn-delete { background-color: #ef4444; color: white; }
+.btn-mark { background-color: #8b5cf6; color: white; }
+.sync-indicator {
+  position: fixed; top: 70px; right: 10px;
+  padding: 5px 10px; border-radius: 20px;
+  font-size: 10px; z-index: 100;
+}
+.sync-online { background-color: #10b981; color: white; }
+.sync-offline { background-color: #ef4444; color: white; }
+.filter-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: bold;
+  border: 2px solid #e5e7eb;
+  background: white;
+  color: #374151;
+}
+.filter-btn.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+.auth-screen {
+  position: fixed; inset: 0; z-index: 200; display: flex;
+  align-items: center; justify-content: center; padding: 24px;
+  background: linear-gradient(160deg, #1d4ed8, #0f766e);
+}
+.auth-screen.hidden { display: none; }
+body.auth-pendente > :not(#auth-screen) { visibility: hidden; }
+</style>
+</head>
+<body class="text-gray-800 auth-pendente">
+<section id="auth-screen" class="auth-screen" aria-labelledby="auth-titulo">
+<form id="auth-form" class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onsubmit="entrarNoApp(event)">
+<div class="text-center mb-5">
+<div class="text-5xl mb-2">⛵</div>
+<h1 id="auth-titulo" class="text-xl font-bold text-blue-800">Controle Catamarã</h1>
+<p class="text-sm text-gray-500 mt-1">Entre com a conta autorizada.</p>
+</div>
+<label for="auth-email" class="block text-sm font-semibold mb-1">Login (e-mail)</label>
+<input id="auth-email" type="email" value="diogomorais91@hotmail.com" readonly autocomplete="username" required class="w-full border-2 border-blue-200 bg-gray-50 rounded-lg p-3 mb-3">
+<label for="auth-senha" class="block text-sm font-semibold mb-1">Senha</label>
+<input id="auth-senha" type="password" autocomplete="current-password" required minlength="6" class="w-full border-2 border-blue-200 rounded-lg p-3 mb-2">
+<p id="auth-erro" class="hidden text-sm text-red-600 font-semibold mb-3" role="alert"></p>
+<button id="auth-entrar" type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow">Entrar</button>
+<button type="button" onclick="enviarLinkSenha()" class="w-full mt-2 text-blue-700 font-semibold py-2">Definir ou esquecer senha</button>
+<p class="text-xs text-gray-500 text-center mt-4">A mesma conta pode ser usada simultaneamente em mais de um celular.</p>
+</form>
+</section>
+<div id="syncIndicator" class="sync-indicator sync-offline">⏳ Conectando...</div>
+<header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10 relative">
+<h1 class="text-xl font-bold text-center">⛵ Controle de Embarques</h1>
+<p class="text-center text-sm opacity-80" id="dataHoje"></p>
+<button type="button" onclick="sairDoApp()" class="absolute right-3 top-3 text-xs bg-blue-800 px-3 py-2 rounded-lg" aria-label="Sair da conta">Sair</button>
+</header>
+<div class="bg-white p-3 shadow-sm sticky top-[88px] z-[5]">
+<div class="flex items-center gap-2">
+<span class="text-sm font-bold text-blue-700"> Data:</span>
+<input type="date" id="dataGlobal" class="flex-1 border-2 border-blue-500 rounded p-2 font-bold">
+<button onclick="irParaHoje()" class="bg-blue-500 text-white px-3 py-2 rounded text-xs font-bold">Hoje</button>
+</div>
+</div>
+<main class="p-4">
+<div id="tab-guias" class="tab-content">
+<div class="card p-4 mb-4">
+<h2 class="font-bold text-lg mb-3 text-blue-700">📋 Registrar Guia</h2>
+<label class="block text-sm font-semibold mb-1">Nome do Guia</label>
+<input type="text" id="nomeGuia" list="guias-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Wesley">
+<datalist id="guias-list"></datalist>
+<label class="block text-sm font-semibold mb-1">Agência</label>
+<input type="text" id="agenciaGuia" list="agencias-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Agência X">
+<datalist id="agencias-list"></datalist>
+<label for="formaPagamentoGuia" class="block text-sm font-semibold mb-1">Forma de pagamento</label>
+<select id="formaPagamentoGuia" class="w-full border rounded p-2 mb-3 bg-white">
+<option value="" selected disabled>Selecione uma opção</option>
+<option value="nao-pagou">Não pagou</option>
+<option value="dinheiro">Dinheiro</option>
+<option value="cartao">Cartão</option>
+<option value="pix">PIX</option>
+<option value="dinheiro-cartao">Dinheiro + cartão</option>
+</select>
+<label for="valorPagoGuia" class="block text-sm font-semibold mb-1">Valor pago (R$)</label>
+<input type="number" id="valorPagoGuia" value="0" min="0" step="0.01" disabled class="w-full border rounded p-2 mb-1 bg-gray-100" placeholder="0,00">
+<p class="text-xs text-gray-500 mb-3">Informe somente o valor realmente recebido.</p>
+<div class="bg-blue-50 p-3 rounded-lg mb-3">
+<h3 class="font-bold text-sm text-blue-700 mb-2">🚤 EMBARQUE</h3>
+<div class="grid grid-cols-2 gap-2">
+<div>
+<label class="block text-xs font-semibold">Adultos (<span id="lbl-adulto">R$60</span>)</label>
+<input type="number" id="adultosGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+<div>
+<label class="block text-xs font-semibold">Crianças (<span id="lbl-crianca">R$35</span>)</label>
+<input type="number" id="criancasGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+<div>
+<label class="block text-xs font-semibold">Bebês (Grátis)</label>
+<input type="number" id="bebesGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+<div>
+<label class="block text-xs font-semibold">Cortesia (Grátis)</label>
+<input type="number" id="cortesiaGuia" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+</div>
+<div class="mt-2 text-xs text-blue-700">
+Total: <span id="totalEmbarque" class="font-bold">0</span> |
+Faturamento: <span id="faturamentoEmbarque" class="font-bold">R$ 0,00</span>
+</div>
+</div>
+<div class="bg-orange-50 p-3 rounded-lg mb-3">
+<h3 class="font-bold text-sm text-orange-700 mb-2">🍽️ ALMOÇO (independente)</h3>
+<label class="block text-xs font-semibold mb-1">Quantos almoçaram?</label>
+<input type="number" id="almocaramGuia" value="0" min="0" class="w-full border rounded p-2 text-center font-bold text-lg">
+<p class="text-xs text-orange-700 mt-1">
+💰 Comissão Jardas: <span id="comissaoAlmoco" class="font-bold">R$ 0,00</span>
+</p>
+<p class="text-xs text-gray-500 mt-1">Somente a agência Jardas: R$ 5 por almoço registrado.</p>
+</div>
+<div id="guia-edicao-aviso" class="hidden bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm font-semibold rounded-lg p-2 mb-2">
+✏️ Alterando um lançamento existente
+</div>
+<div class="flex gap-2">
+<button id="btn-salvar-guia" onclick="salvarGuia()" class="flex-1 btn-add font-bold py-3 rounded-lg shadow-md text-lg">
+✅ Adicionar Guia
+</button>
+<button id="btn-cancelar-edicao-guia" onclick="cancelarEdicaoGuia()" class="hidden bg-gray-500 text-white font-bold py-3 px-4 rounded-lg shadow-md text-sm">
+Cancelar
+</button>
+</div>
+</div>
+<div class="card p-4">
+<h3 class="font-bold text-blue-700 mb-2">Guias Registrados</h3>
+<div id="lista-guias" class="space-y-2">
+<p class="text-gray-500 text-center text-sm">Nenhum guia registrado.</p>
+</div>
+<div class="mt-3 pt-3 border-t">
+<div class="flex justify-between text-sm"><span>Total Embarque:</span> <span id="total-guias-pax" class="font-bold">0</span></div>
+<div class="flex justify-between text-sm"><span>Faturamento:</span> <span id="total-guias-valor" class="font-bold text-green-600">R$ 0,00</span></div>
+<div class="flex justify-between text-sm"><span>Total Almoço:</span> <span id="total-guias-almoco" class="font-bold text-orange-600">0</span></div>
+<div class="flex justify-between text-sm"><span>Total Comissão Jardas:</span> <span id="total-guias-comissao" class="font-bold text-red-600">R$ 0,00</span></div>
+</div>
+<button onclick="exportarGuias()" class="w-full mt-3 bg-gray-600 text-white font-bold py-2 rounded-lg shadow text-sm">
+Exportar CSV
+</button>
+</div>
+</div>
+<div id="tab-barcos" class="tab-content hidden">
+<div class="card p-4 mb-4">
+<h2 class="font-bold text-lg mb-3 text-blue-700">🚤 Registrar Embarcação</h2>
+<label class="block text-sm font-semibold mb-1">Catamarã / Dono</label>
+<input type="text" id="nomeBarco" list="barcos-list" class="w-full border rounded p-2 mb-3" placeholder="Ex: Sanderson">
+<datalist id="barcos-list"></datalist>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div>
+<label class="block text-xs font-semibold">Adultos</label>
+<input type="number" id="adultosBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+<div>
+<label class="block text-xs font-semibold">Crianças</label>
+<input type="number" id="criancasBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+<div>
+<label class="block text-xs font-semibold">Bebês</label>
+<input type="number" id="bebesBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+<div>
+<label class="block text-xs font-semibold">Cortesia</label>
+<input type="number" id="cortesiaBarco" value="0" min="0" class="w-full border rounded p-2 text-center">
+</div>
+</div>
+<button onclick="salvarBarco()" class="w-full btn-boat font-bold py-3 rounded-lg shadow-md text-lg">
+🚤 Adicionar Embarcação
+</button>
+</div>
+<div class="card p-4">
+<h3 class="font-bold text-blue-700 mb-2">Embarcações Registradas</h3>
+<div id="lista-barcos" class="space-y-2">
+<p class="text-gray-500 text-center text-sm">Nenhuma embarcação registrada.</p>
+</div>
+<div class="mt-3 pt-3 border-t">
+<div class="flex justify-between text-sm"><span>Total Pessoas:</span> <span id="total-barcos-pax" class="font-bold">0</span></div>
+<div class="flex justify-between text-sm"><span>Total Repasse:</span> <span id="total-barcos-valor" class="font-bold text-green-600">R$ 0,00</span></div>
+</div>
+<button onclick="exportarBarcos()" class="w-full mt-3 bg-gray-600 text-white font-bold py-2 rounded-lg shadow text-sm">
+📥 Exportar CSV
+</button>
+</div>
+</div>
+<div id="tab-contas" class="tab-content hidden">
+<h2 class="font-bold text-lg mb-3 text-blue-700"> Prestação de Contas</h2>
+<div class="card p-4 mb-4 border-2 border-blue-500">
+<h3 class="font-bold text-blue-700 mb-1">🚤 Relatório por Embarcação</h3>
+<p class="text-xs text-gray-500 mb-3">Escolha a embarcação e o período para ver os dias e a quantidade de passageiros.</p>
+<div class="grid grid-cols-1 gap-3 mb-3">
+<div>
+<label for="relatorioBarcoNome" class="block text-xs font-semibold mb-1">Embarcação:</label>
+<select id="relatorioBarcoNome" onchange="atualizarPeriodoRelatorioBarco(true)" class="w-full border-2 border-blue-500 rounded p-2 bg-white">
+<option value="">Selecione uma embarcação</option>
+</select>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div>
+<label for="relatorioBarcoDataInicio" class="block text-xs font-semibold mb-1">De:</label>
+<input type="date" id="relatorioBarcoDataInicio" class="w-full border-2 border-blue-500 rounded p-2 bg-white">
+</div>
+<div>
+<label for="relatorioBarcoDataFim" class="block text-xs font-semibold mb-1">Até:</label>
+<input type="date" id="relatorioBarcoDataFim" class="w-full border-2 border-blue-500 rounded p-2 bg-white">
+</div>
+</div>
+</div>
+<button onclick="gerarRelatorioBarco()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow">
+🔍 Gerar Relatório da Embarcação
+</button>
+<div id="relatorio-barco-resultado" class="mt-4">
+<p class="text-gray-500 text-sm text-center">Selecione uma embarcação e o período.</p>
+</div>
+<button id="exportar-relatorio-barco" onclick="exportarRelatorioBarco()" class="hidden w-full mt-3 bg-gray-700 text-white font-bold py-2 rounded-lg shadow">
+📥 Exportar esta Embarcação (CSV)
+</button>
+</div>
+<div class="card p-4 mb-4">
+<h3 class="font-bold text-blue-700 mb-2">📅 Período do Relatório</h3>
+<div class="grid grid-cols-2 gap-2 mb-2">
+<div>
+<label for="dataInicio" class="block text-xs font-semibold mb-1">De:</label>
+<input type="date" id="dataInicio" aria-label="Início do período da prestação" class="w-full border-2 border-blue-500 rounded p-2">
+</div>
+<div>
+<label for="dataFim" class="block text-xs font-semibold mb-1">Até:</label>
+<input type="date" id="dataFim" aria-label="Fim do período da prestação" class="w-full border-2 border-blue-500 rounded p-2">
+</div>
+</div>
+<div class="flex gap-2 mb-3">
+<button onclick="aplicarPeriodo()" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-lg shadow text-sm">
+🔍 Gerar Relatório
+</button>
+<button onclick="periodoHoje()" class="bg-gray-500 text-white font-bold py-2 px-3 rounded-lg shadow text-xs">
+Hoje
+</button>
+<button onclick="periodoMes()" class="bg-gray-500 text-white font-bold py-2 px-3 rounded-lg shadow text-xs">
+Mês
+</button>
+</div>
+<h4 class="font-bold text-sm text-gray-700 mb-2">📋 Tipo de Relatório:</h4>
+<div class="flex gap-2 flex-wrap">
+<button onclick="setFiltroTipo('ambos')" id="filtro-ambos" class="filter-btn active flex-1">
+📊 Ambos
+</button>
+<button onclick="setFiltroTipo('embarque')" id="filtro-embarque" class="filter-btn flex-1">
+🚤 Só Embarque
+</button>
+<button onclick="setFiltroTipo('comissao')" id="filtro-comissao" class="filter-btn flex-1">
+🍽️ Só Comissão
+</button>
+</div>
+</div>
+<div id="secao-embarque" class="card p-4 mb-4">
+<h3 class="font-bold text-green-700 mb-2">💰 Repasse aos Donos (Embarque)</h3>
+<p class="text-xs text-gray-500 mb-3">Cada linha representa uma data. O pagamento pode ser total ou dividido em várias partes.</p>
+<div id="rel-catamaras"></div>
+</div>
+<div id="secao-comissao" class="card p-4 mb-4">
+<h3 class="font-bold text-purple-700 mb-2">📋 Contas Jardas</h3>
+<p class="text-xs text-gray-500 mb-2">(R$ <span id="lbl-comissao-rel">5</span> por almoço)</p>
+<p class="text-xs text-gray-500 mb-1">Os pagamentos também podem ser registrados separadamente por data.</p>
+<p class="text-xs text-purple-700 font-semibold mb-3">O relatório do WhatsApp é exclusivo da agência Jardas.</p>
+<div id="rel-agencias"></div>
+</div>
+<div class="card p-4 mb-4">
+<h3 class="font-bold text-orange-700 mb-2"> Conferência</h3>
+<div class="space-y-2 text-sm">
+<div class="flex justify-between"><span>Total embarcado (guias):</span> <span id="conf-guias" class="font-bold">0</span></div>
+<div class="flex justify-between"><span>Total nos barcos:</span> <span id="conf-barcos" class="font-bold">0</span></div>
+<div class="flex justify-between pt-2 border-t"><span class="font-bold">Diferença:</span> <span id="conf-dif" class="font-bold text-red-600">0</span></div>
+<div class="flex justify-between text-orange-600"><span>Total almoçantes:</span> <span id="conf-almoco" class="font-bold">0</span></div>
+</div>
+</div>
+<div class="card p-4 mb-4">
+<h3 class="font-bold text-blue-700 mb-2">📈 Resumo Financeiro</h3>
+<div class="space-y-2 text-sm">
+<div class="flex justify-between"><span>Faturamento:</span> <span id="res-bruto" class="font-bold text-green-600">R$ 0,00</span></div>
+<div class="flex justify-between"><span>Comissão:</span> <span id="res-comissao" class="font-bold text-red-500">R$ 0,00</span></div>
+<div class="flex justify-between"><span>Repasse:</span> <span id="res-repasse" class="font-bold text-blue-600">R$ 0,00</span></div>
+<div class="flex justify-between pt-2 border-t"><span class="font-bold">Seu Lucro:</span> <span id="res-lucro" class="font-bold text-purple-600">R$ 0,00</span></div>
+</div>
+</div>
+<button onclick="exportarRelatorioPeriodo()" class="w-full bg-gray-700 text-white font-bold py-3 rounded-lg shadow">
+📥 Exportar Relatório Completo (CSV)
+</button>
+</div>
+<div id="tab-jacilene" class="tab-content hidden">
+<h2 class="font-bold text-lg mb-3 text-pink-700">👩 Jacilene</h2>
+<div class="card p-4 mb-4 border-2 border-pink-400">
+<h3 class="font-bold text-pink-700 mb-1">Prestação exclusiva do Velho Bill</h3>
+<p class="text-xs text-gray-500 mb-3">O cálculo utiliza somente adultos, com NET de R$ 60,00 e limite máximo de 18 PAX.</p>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div>
+<label for="jacileneDataInicio" class="block text-xs font-semibold mb-1">De:</label>
+<input type="date" id="jacileneDataInicio" class="w-full border-2 border-pink-400 rounded p-2">
+</div>
+<div>
+<label for="jacileneDataFim" class="block text-xs font-semibold mb-1">Até:</label>
+<input type="date" id="jacileneDataFim" class="w-full border-2 border-pink-400 rounded p-2">
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2">
+<button onclick="atualizarJacilene()" class="bg-pink-600 text-white font-bold py-2 rounded-lg text-xs">🔍 Gerar</button>
+<button onclick="periodoHojeJacilene()" class="bg-gray-500 text-white font-bold py-2 rounded-lg text-xs">Hoje</button>
+<button onclick="periodoMesJacilene()" class="bg-gray-500 text-white font-bold py-2 rounded-lg text-xs">Mês</button>
+</div>
+</div>
+<div class="card p-4 mb-4">
+<div class="mb-3">
+<h3 class="font-bold text-pink-700">Valores por dia</h3>
+<p class="text-xs text-gray-500">Toque em "Marcar como pago" na data correspondente.</p>
+</div>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div class="bg-pink-50 rounded-lg p-2">
+<div class="text-xs text-gray-500">Total do período</div>
+<div id="jacilene-total" class="font-bold text-pink-700">R$ 0,00</div>
+</div>
+<div id="jacilene-saldo-card" class="bg-green-50 rounded-lg p-2 text-right">
+<div class="text-xs text-gray-500">Saldo devedor</div>
+<div id="jacilene-saldo-devedor" class="font-bold text-green-700">R$ 0,00</div>
+</div>
+</div>
+<div id="jacilene-resumo" class="text-xs text-gray-500 mb-3"></div>
+<div id="jacilene-lista" class="space-y-2">
+<p class="text-gray-500 text-sm text-center">Nenhum embarque do Velho Bill no período.</p>
+</div>
+</div>
+<div class="card p-4">
+<h3 class="font-bold text-pink-700 mb-3">Histórico de pagamentos da Jacilene</h3>
+<div id="historico-jacilene" class="space-y-2">
+<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
+</div>
+</div>
+</div>
+<div id="tab-historico" class="tab-content hidden">
+<h2 class="font-bold text-lg mb-3 text-blue-700">📜 Histórico de Pagamentos</h2>
+<div class="card p-4 mb-4">
+<h3 class="font-bold text-green-700 mb-3">🚤 Último Pagamento aos Catamarãs</h3>
+<div id="historico-catamaras" class="space-y-2">
+<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
+</div>
+</div>
+<div class="card p-4 mb-4">
+<h3 class="font-bold text-purple-700 mb-3">Último Pagamento de Comissão (Jardas)</h3>
+<div id="historico-agencias" class="space-y-2">
+<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
+</div>
+</div>
+<div class="card p-4 mb-4">
+<h3 class="font-bold text-blue-700 mb-3">Todos os Pagamentos</h3>
+<div id="lista-prestacoes" class="space-y-2">
+<p class="text-gray-500 text-sm">Nenhum pagamento registrado.</p>
+</div>
+</div>
+</div>
+<div id="tab-config" class="tab-content hidden">
+<h2 class="font-bold text-lg mb-3 text-blue-700">⚙️ Configurações</h2>
+<div class="card p-4 mb-4">
+<h3 class="font-bold mb-3">💵 Valores</h3>
+<p class="text-xs text-gray-500 mb-3">️ Alterar afeta só novos lançamentos.</p>
+<label for="cfg-adulto" class="block text-sm font-semibold mb-1">Adulto (R$)</label>
+<input type="number" id="cfg-adulto" min="0" step="0.01" class="w-full border rounded p-2 mb-3">
+<label for="cfg-crianca" class="block text-sm font-semibold mb-1">Criança (R$)</label>
+<input type="number" id="cfg-crianca" min="0" step="0.01" class="w-full border rounded p-2 mb-3">
+<label for="cfg-comissao" class="block text-sm font-semibold mb-1">Comissão Jardas por almoço (R$)</label>
+<input type="number" id="cfg-comissao" min="0" step="0.01" class="w-full border rounded p-2 mb-3">
+<button onclick="salvarConfig()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow">
+💾 Salvar Configurações
+</button>
+</div>
+<div class="card p-4">
+<h3 class="font-bold mb-3 text-red-600">⚠️ Backup e Restauração</h3>
+<button onclick="backupDados()" class="w-full bg-green-600 text-white font-bold py-2 rounded-lg shadow mb-2">
+💾 Baixar Backup (JSON)
+</button>
+<button onclick="document.getElementById('inputRestore').click()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow mb-2">
+Restaurar Backup
+</button>
+<input type="file" id="inputRestore" accept=".json" class="hidden" onchange="restaurarBackup(event)">
+<p class="text-xs text-gray-500 mb-3">Use para recuperar seus dados em outro celular ou após limpar cache.</p>
+<p class="text-xs text-gray-500">Por segurança, a exclusão geral do banco foi removida. Exclua somente o lançamento necessário; ele ficará preservado no Histórico.</p>
+</div>
+</div>
+</main>
+<div id="modal-pagamento" class="hidden fixed inset-0 z-50 bg-black bg-opacity-50 p-4 flex items-center justify-center">
+<div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 max-h-[90vh] overflow-y-auto">
+<div class="flex justify-between items-start gap-3 mb-4">
+<div>
+<h2 id="pagamento-titulo" class="font-bold text-lg text-blue-800">Registrar pagamento</h2>
+<p id="pagamento-subtitulo" class="text-xs text-gray-500">Registre o valor pago agora. O restante poderá ser pago em outro dia.</p>
+</div>
+<button type="button" onclick="fecharModalPagamento()" class="text-gray-500 text-2xl leading-none" aria-label="Fechar">×</button>
+</div>
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm">
+<div class="font-bold text-blue-800" id="pagamento-nome"></div>
+<div class="text-xs text-gray-600 mt-1">Movimento: <span id="pagamento-data"></span></div>
+<div class="grid grid-cols-3 gap-2 mt-3 text-center">
+<div class="bg-white rounded p-2">
+<div class="text-xs text-gray-500" id="pagamento-total-rotulo">Total do dia</div>
+<div class="font-bold text-blue-800" id="pagamento-total"></div>
+</div>
+<div class="bg-white rounded p-2">
+<div class="text-xs text-gray-500" id="pagamento-ja-pago-rotulo">Já pago</div>
+<div class="font-bold text-green-700" id="pagamento-ja-pago"></div>
+</div>
+<div class="bg-white rounded p-2">
+<div class="text-xs text-gray-500" id="pagamento-saldo-rotulo">Disponível</div>
+<div class="font-bold text-orange-700" id="pagamento-saldo"></div>
+</div>
+</div>
+</div>
+<div class="card p-4">
+<h3 class="font-bold text-red-700 mb-1">Registros excluídos</h3>
+<p class="text-xs text-gray-500 mb-3">Itens retirados das contas, preservados para conferência.</p>
+<div id="historico-exclusoes" class="space-y-2">
+<p class="text-gray-500 text-sm">Nenhum registro excluído.</p>
+</div>
+</div>
+<label for="pagamento-valor-parcela" class="block text-sm font-semibold mb-1">Valor deste pagamento:</label>
+<input id="pagamento-valor-parcela" type="number" min="0.01" step="0.01" inputmode="decimal" oninput="atualizarPreviaPagamento()" class="w-full border-2 border-green-500 rounded p-2 mb-1 text-lg font-bold">
+<p id="pagamento-restante" class="text-xs font-bold text-orange-700 mb-1"></p>
+<p id="pagamento-dica" class="text-xs text-gray-500 mb-4">Digite o saldo inteiro ou somente a parte que será paga agora.</p>
+<label for="pagamento-observacao" class="block text-sm font-semibold mb-1">Como foi pago / observação:</label>
+<textarea id="pagamento-observacao" rows="3" maxlength="300" class="w-full border-2 border-blue-500 rounded p-2 mb-4" placeholder="Ex: Pix, dinheiro, transferência, pago para João..."></textarea>
+<div id="saldo-prestacao-jardas" class="hidden bg-purple-50 border-2 border-purple-200 rounded-lg p-3 mb-4">
+<div class="text-sm font-bold text-purple-800 mb-1">Saldo calculado automaticamente</div>
+<div id="saldo-prestacao-automatico" class="text-lg font-bold text-purple-900 bg-white rounded p-2 mb-2">Calculando...</div>
+<select id="saldo-prestacao-tipo" class="hidden">
+<option value="">Selecione</option>
+<option value="zerado">Saldo zerado</option>
+<option value="jardas-deve">Jardas ficou devendo</option>
+<option value="nos-devemos">Nós ficamos devendo ao Jardas</option>
+</select>
+<div id="saldo-prestacao-valor-bloco" class="hidden">
+<label for="saldo-prestacao-valor" class="block text-sm font-semibold mb-1">Valor que ficou devendo:</label>
+<input id="saldo-prestacao-valor" type="number" min="0.01" step="0.01" inputmode="decimal" class="w-full border-2 border-purple-400 rounded p-2 text-lg font-bold">
+</div>
+<p class="text-xs text-purple-700 mt-2">O saldo anterior e os movimentos até esta data serão considerados automaticamente.</p>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<button type="button" onclick="fecharModalPagamento()" class="bg-gray-500 text-white font-bold py-2 rounded-lg">Cancelar</button>
+<button type="button" id="confirmar-pagamento" onclick="salvarPagamentoDiario()" class="bg-green-600 text-white font-bold py-2 rounded-lg">✅ Registrar pagamento</button>
+</div>
+</div>
+</div>
+<nav class="app-bottom-nav bg-white border-t flex justify-around shadow-lg">
+<button onclick="abrirTab('guias')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0 tab-active" id="btn-guias">
+<span class="text-xl">📋</span> Guias
+</button>
+<button onclick="abrirTab('barcos')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-barcos">
+<span class="text-xl">🚤</span> Barcos
+</button>
+<button onclick="abrirTab('contas')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-contas">
+<span class="text-xl">📊</span> Contas
+</button>
+<button onclick="abrirTab('jacilene')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-jacilene">
+<span class="text-xl">👩</span> Jacilene
+</button>
+<button onclick="abrirTab('historico')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-historico">
+<span class="text-xl">📜</span> Histórico
+</button>
+<button onclick="abrirTab('config')" class="tab-btn flex-1 flex flex-col items-center text-xs py-1 px-0" id="btn-config">
+<span class="text-xl">️</span> Config
+</button>
+</nav>
 <script>
-// FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAYkQ99hLH31ojXtTt_O6-TRhTh8nyL3CQ",
   authDomain: "controle-catamara.firebaseapp.com",
@@ -22,9 +536,7 @@ let registrosGuias = [];
 let registrosEmbarcacoes = [];
 let prestacoes = [];
 let historicoExclusoes = [];
-
 let config = { adulto: 60, crianca: 35, comissao: 5 };
-
 let dataGlobal = dataLocalHoje();
 let filtroTipoRelatorio = 'ambos';
 let pagamentoEmEdicao = null;
@@ -35,7 +547,6 @@ let usuarioAtual = null;
 let temporizadorAtualizacao = null;
 
 const cacheSaldoJardas = new Map();
-
 const inicioCortesiasAutomaticasJardas = '2026-07-21';
 const fechamentoInicialJardas = '2026-07-26';
 
@@ -47,21 +558,6 @@ const tabelaJacilene = {
   17: 194.50,
   18: 228.50
 };
-
-// FUNÇÕES AUXILIARES
-function arredondar2(valor) {
-  const numero = Number(valor);
-  if (!Number.isFinite(numero)) return 0;
-  return Math.round((numero + Number.EPSILON) * 100) / 100;
-}
-
-function somarMoeda(...valores) {
-  return valores.reduce((total, valor) => arredondar2(total + (Number(valor) || 0)), 0);
-}
-
-function dataValidaISO(data) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(data || ''));
-}
 
 function dataLocalHoje() {
   const hoje = new Date();
@@ -84,7 +580,7 @@ function obterNumero(id) {
 function obterValorMonetario(id) {
   const valor = parseFloat(String(document.getElementById(id).value).replace(',', '.'));
   if (isNaN(valor) || valor < 0) return 0;
-  return arredondar2(valor);
+  return Math.round(valor * 100) / 100;
 }
 
 function escaparHTML(texto) {
@@ -99,16 +595,7 @@ function escaparHTML(texto) {
 function formatarMoeda(valor) {
   const numero = Number(valor);
   const seguro = Number.isFinite(numero) ? numero : 0;
-  return `R$ ${seguro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function formatarValorCurto(valor) {
-  const numero = Number(valor);
-  const seguro = Number.isFinite(numero) ? numero : 0;
-  return seguro.toLocaleString('pt-BR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  });
+  return `R$ ${seguro.toFixed(2).replace('.', ',')}`;
 }
 
 function escapeCSV(valor) {
@@ -174,57 +661,29 @@ function detalharPagamentoGuia(formaPagamento, valor) {
 }
 
 function situacaoSaldoJardas(saldo) {
-  const valor = arredondar2(saldo);
-
-  if (valor > 0.009) {
-    return {
-      rotulo: 'Devemos ao Jardas',
-      texto: `Devemos ao Jardas: ${formatarMoeda(valor)}`
-    };
-  }
-
-  if (valor < -0.009) {
-    return {
-      rotulo: 'Jardas deve',
-      texto: `Jardas deve: ${formatarMoeda(Math.abs(valor))}`
-    };
-  }
-
-  return {
-    rotulo: 'Saldo',
-    texto: 'Saldo zerado'
-  };
+  const valor = Number(saldo) || 0;
+  if (valor > 0.009) return { rotulo: 'Devemos ao Jardas', texto: `Devemos ao Jardas: ${formatarMoeda(valor)}` };
+  if (valor < -0.009) return { rotulo: 'Jardas deve', texto: `Jardas deve: ${formatarMoeda(Math.abs(valor))}` };
+  return { rotulo: 'Saldo', texto: 'Saldo zerado' };
 }
 
 function calcularCortesiasJardas(adultos) {
   const quantidade = Math.max(0, Math.floor(Number(adultos) || 0));
-
-  // Menos de 15 adultos não gera cortesia
-  if (quantidade < 15) return 0;
-
-  // A cada 20 adultos: 2 cortesias
   const gruposDeVinte = Math.floor(quantidade / 20);
-
-  // Se sobrar 15 ou mais adultos: +1 cortesia
   const restante = quantidade % 20;
-
   return (gruposDeVinte * 2) + (restante >= 15 ? 1 : 0);
-}
-
-function obterCortesiasDiariasJardas(data, adultos, valorAdulto = 60) {
-  const quantidade = dataValidaISO(data) && data >= inicioCortesiasAutomaticasJardas
+}function obterCortesiasDiariasJardas(data, adultos, valorAdulto = 60) {
+  const quantidade = data >= inicioCortesiasAutomaticasJardas
     ? calcularCortesiasJardas(adultos)
     : 0;
 
   return {
     quantidade,
-    valor: arredondar2(quantidade * (Number(valorAdulto) || 60))
+    valor: quantidade * (Number(valorAdulto) || 60)
   };
 }
 
 function deslocarData(data, quantidadeDias) {
-  if (!dataValidaISO(data)) return dataLocalHoje();
-
   const [ano, mes, dia] = String(data).split('-').map(Number);
   const resultado = new Date(Date.UTC(ano, mes - 1, dia));
   resultado.setUTCDate(resultado.getUTCDate() + quantidadeDias);
@@ -232,46 +691,39 @@ function deslocarData(data, quantidadeDias) {
 }
 
 function saldoAssinadoPrestacao(prestacao) {
-  const valor = arredondar2(Math.max(0, Number(prestacao?.saldoDeclaradoValor) || 0));
-
-  if (prestacao?.saldoDeclaradoTipo === 'jardas-deve') return arredondar2(-valor);
+  const valor = Math.max(0, Number(prestacao?.saldoDeclaradoValor) || 0);
+  if (prestacao?.saldoDeclaradoTipo === 'jardas-deve') return -valor;
   if (prestacao?.saldoDeclaradoTipo === 'nos-devemos') return valor;
-
   return 0;
 }
 
 function valorAssinadoPagamentoJardas(prestacao) {
-  const valor = arredondar2(Math.max(0, Number(prestacao?.valor) || 0));
-
+  const valor = Math.max(0, Number(prestacao?.valor) || 0);
   if (prestacao?.fechamentoGeral || valor <= 0) return 0;
 
   const efeitoSalvo = Number(prestacao?.efeitoSaldo);
-  if (Number.isFinite(efeitoSalvo)) return arredondar2(efeitoSalvo);
+  if (Number.isFinite(efeitoSalvo)) return efeitoSalvo;
 
   return valor;
 }
 
 function aplicarPagamentoAoSaldo(saldoAntes, valorPagamento) {
-  const saldo = arredondar2(saldoAntes);
-  const valor = arredondar2(valorPagamento);
+  const saldo = Number(saldoAntes) || 0;
+  const valor = Math.max(0, Number(valorPagamento) || 0);
 
-  if (saldo < -0.009) return somarMoeda(saldo, valor);
-  if (saldo > 0.009) return arredondar2(saldo - valor);
+  if (saldo < -0.009) return saldo + valor;
+  if (saldo > 0.009) return saldo - valor;
 
   return 0;
 }
 
 function resumoPagamentosJardas(pagamentos) {
   return pagamentos.reduce((resumo, pagamento) => {
-    if (pagamento?.fechamentoGeral) return resumo;
+    const valor = Math.max(0, Number(pagamento?.valor) || 0);
+    if (pagamento?.fechamentoGeral || valor <= 0) return resumo;
 
-    const valor = arredondar2(Math.max(0, Number(pagamento?.valor) || 0));
-    if (valor <= 0) return resumo;
-
-    const efeito = valorAssinadoPagamentoJardas(pagamento);
-
-    resumo.valorAbatido = somarMoeda(resumo.valorAbatido, Math.max(0, efeito));
-    resumo.saldoAssinado = somarMoeda(resumo.saldoAssinado, efeito);
+    resumo.valorAbatido += valor;
+    resumo.saldoAssinado += valorAssinadoPagamentoJardas(pagamento);
 
     return resumo;
   }, { valorAbatido: 0, saldoAssinado: 0 });
@@ -279,16 +731,8 @@ function resumoPagamentosJardas(pagamentos) {
 
 function dataUltimoFechamentoJardas() {
   return prestacoes
-    .filter(p =>
-      p.tipo === 'agencia' &&
-      ehAgenciaComissionada(p.nome) &&
-      p.fechamentoGeral &&
-      dataValidaISO(p.dataMovimento)
-    )
-    .reduce(
-      (dataMaisRecente, p) => (p.dataMovimento > dataMaisRecente ? p.dataMovimento : dataMaisRecente),
-      fechamentoInicialJardas
-    );
+    .filter(p => p.tipo === 'agencia' && ehAgenciaComissionada(p.nome) && p.fechamentoGeral && p.dataMovimento)
+    .reduce((dataMaisRecente, p) => p.dataMovimento > dataMaisRecente ? p.dataMovimento : dataMaisRecente, fechamentoInicialJardas);
 }
 
 function ehDataFechamentoJardas(data) {
@@ -301,20 +745,16 @@ function ehDataFechamentoJardas(data) {
 }
 
 function calcularBaixasDiariasJardas(dataFim) {
-  if (!dataValidaISO(dataFim)) {
-    return { porData: {}, totalPagamentos: 0, creditoOperacional: 0, creditoSobrando: 0 };
-  }
-
   const fechamentoAteData = prestacoes
     .filter(p =>
       p.tipo === 'agencia' &&
       ehAgenciaComissionada(p.nome) &&
       p.fechamentoGeral &&
-      dataValidaISO(p.dataMovimento) &&
+      p.dataMovimento &&
       p.dataMovimento <= dataFim
     )
     .reduce(
-      (dataMaisRecente, p) => (p.dataMovimento > dataMaisRecente ? p.dataMovimento : dataMaisRecente),
+      (dataMaisRecente, p) => p.dataMovimento > dataMaisRecente ? p.dataMovimento : dataMaisRecente,
       dataFim >= fechamentoInicialJardas ? fechamentoInicialJardas : ''
     );
 
@@ -322,16 +762,11 @@ function calcularBaixasDiariasJardas(dataFim) {
     ? deslocarData(fechamentoAteData, 1)
     : inicioCortesiasAutomaticasJardas;
 
-  if (!dataValidaISO(dataInicio) || dataInicio > dataFim) {
-    return { porData: {}, totalPagamentos: 0, creditoOperacional: 0, creditoSobrando: 0 };
-  }
-
   const dias = {};
 
   registrosGuias
     .filter(registro =>
       ehAgenciaComissionada(registro.agencia) &&
-      dataValidaISO(registro.data) &&
       registro.data >= dataInicio &&
       registro.data <= dataFim
     )
@@ -349,50 +784,48 @@ function calcularBaixasDiariasJardas(dataFim) {
 
       dias[registro.data].adultos += Number(registro.adultos) || 0;
       dias[registro.data].criancas += Number(registro.criancas) || 0;
-      dias[registro.data].valorPagoGuias = somarMoeda(dias[registro.data].valorPagoGuias, Number(registro.valorPago) || 0);
-      dias[registro.data].passagens = somarMoeda(dias[registro.data].passagens, valorFaturamentoRegistro(registro));
-      dias[registro.data].comissao = somarMoeda(dias[registro.data].comissao, valorComissaoRegistro(registro));
+      dias[registro.data].valorPagoGuias += Number(registro.valorPago) || 0;
+      dias[registro.data].passagens += valorFaturamentoRegistro(registro);
+      dias[registro.data].comissao += valorComissaoRegistro(registro);
 
       if (!dias[registro.data].valorAdulto) {
         dias[registro.data].valorAdulto = valorAdultoRegistro(registro);
       }
     });
 
-  const creditoOperacional = arredondar2(Object.entries(dias).reduce((total, [data, dia]) => {
+  const creditoOperacional = Object.entries(dias).reduce((total, [data, dia]) => {
     const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor;
-    const creditoDia = somarMoeda(dia.valorPagoGuias, dia.comissao, cortesias) - dia.passagens;
-    return somarMoeda(total, Math.max(0, creditoDia));
-  }, 0));
+    return total + Math.max(0, dia.valorPagoGuias + dia.comissao + cortesias - dia.passagens);
+  }, 0);
 
   const pagamentosRecebidos = prestacoes
     .filter(p =>
       p.tipo === 'agencia' &&
       ehAgenciaComissionada(p.nome) &&
       !p.fechamentoGeral &&
-      dataValidaISO(p.dataMovimento) &&
       p.dataMovimento >= dataInicio &&
       p.dataMovimento <= dataFim
     )
-    .reduce((total, p) => somarMoeda(total, Math.max(0, valorAssinadoPagamentoJardas(p))), 0);
+    .reduce((total, p) => total + Math.max(0, valorAssinadoPagamentoJardas(p)), 0);
 
-  let creditoDisponivel = somarMoeda(creditoOperacional, pagamentosRecebidos);
+  let creditoDisponivel = creditoOperacional + pagamentosRecebidos;
   const totalPagamentos = pagamentosRecebidos;
   const porData = {};
 
   Object.entries(dias)
     .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
     .forEach(([data, dia]) => {
-      const passagens = arredondar2(dia.passagens);
-      const comissao = arredondar2(dia.comissao);
+      const passagens = dia.passagens;
+      const comissao = dia.comissao;
       const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor;
 
-      const creditoDoDia = arredondar2(Math.max(0, somarMoeda(dia.valorPagoGuias, comissao, cortesias) - passagens));
-      const valorDevido = arredondar2(Math.max(0, passagens - somarMoeda(dia.valorPagoGuias, comissao, cortesias)));
+      const creditoDoDia = Math.max(0, dia.valorPagoGuias + comissao + cortesias - passagens);
+      const valorDevido = Math.max(0, passagens - dia.valorPagoGuias - comissao - cortesias);
 
-      const valorAbatido = arredondar2(Math.min(valorDevido, creditoDisponivel));
-      const restante = arredondar2(Math.max(0, valorDevido - valorAbatido));
+      const valorAbatido = Math.min(valorDevido, creditoDisponivel);
+      const restante = Math.max(0, valorDevido - valorAbatido);
 
-      creditoDisponivel = arredondar2(Math.max(0, creditoDisponivel - valorAbatido));
+      creditoDisponivel = Math.max(0, creditoDisponivel - valorAbatido);
 
       porData[data] = {
         valorDevido,
@@ -413,7 +846,7 @@ function calcularBaixasDiariasJardas(dataFim) {
 }
 
 function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
-  if (!dataValidaISO(dataFim) || dataFim < inicioCortesiasAutomaticasJardas) return 0;
+  if (!dataFim || dataFim < inicioCortesiasAutomaticasJardas) return 0;
 
   if (!prestacaoIgnoradaId && cacheSaldoJardas.has(dataFim)) {
     return cacheSaldoJardas.get(dataFim);
@@ -424,7 +857,7 @@ function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
       p.id !== prestacaoIgnoradaId &&
       p.tipo === 'agencia' &&
       ehAgenciaComissionada(p.nome) &&
-      dataValidaISO(p.dataMovimento) &&
+      p.dataMovimento &&
       p.dataMovimento <= dataFim
     );
 
@@ -445,13 +878,13 @@ function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
     ? fechamentoRegistrado
     : fechamentoConhecido;
 
-  let saldo = arredondar2(ultimoFechamento ? saldoAssinadoPrestacao(ultimoFechamento) : 0);
+  let saldo = ultimoFechamento ? saldoAssinadoPrestacao(ultimoFechamento) : 0;
 
   const dataInicio = ultimoFechamento
     ? deslocarData(ultimoFechamento.dataMovimento, 1)
     : inicioCortesiasAutomaticasJardas;
 
-  if (!dataValidaISO(dataInicio) || dataInicio > dataFim) {
+  if (dataInicio > dataFim) {
     if (!prestacaoIgnoradaId) cacheSaldoJardas.set(dataFim, saldo);
     return saldo;
   }
@@ -461,7 +894,6 @@ function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
   registrosGuias
     .filter(registro =>
       ehAgenciaComissionada(registro.agencia) &&
-      dataValidaISO(registro.data) &&
       registro.data >= dataInicio &&
       registro.data <= dataFim
     )
@@ -479,9 +911,9 @@ function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
 
       dias[registro.data].adultos += Number(registro.adultos) || 0;
       dias[registro.data].criancas += Number(registro.criancas) || 0;
-      dias[registro.data].valorPago = somarMoeda(dias[registro.data].valorPago, Number(registro.valorPago) || 0);
-      dias[registro.data].passagens = somarMoeda(dias[registro.data].passagens, valorFaturamentoRegistro(registro));
-      dias[registro.data].comissao = somarMoeda(dias[registro.data].comissao, valorComissaoRegistro(registro));
+      dias[registro.data].valorPago += Number(registro.valorPago) || 0;
+      dias[registro.data].passagens += valorFaturamentoRegistro(registro);
+      dias[registro.data].comissao += valorComissaoRegistro(registro);
 
       if (!dias[registro.data].valorAdulto) {
         dias[registro.data].valorAdulto = valorAdultoRegistro(registro);
@@ -492,14 +924,14 @@ function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
     .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
     .forEach(([data, dia]) => {
       const cortesias = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto);
-      saldo = arredondar2(somarMoeda(saldo, dia.valorPago, dia.comissao, cortesias.valor) - dia.passagens);
+      saldo += dia.valorPago + dia.comissao + cortesias.valor - dia.passagens;
     });
 
   const movimentoPagamentos = prestacoesJardas
-    .filter(p => dataValidaISO(p.dataMovimento) && p.dataMovimento >= dataInicio && p.dataMovimento <= dataFim)
-    .reduce((total, p) => somarMoeda(total, valorAssinadoPagamentoJardas(p)), 0);
+    .filter(p => p.dataMovimento >= dataInicio && p.dataMovimento <= dataFim)
+    .reduce((total, p) => total + valorAssinadoPagamentoJardas(p), 0);
 
-  const saldoFinal = somarMoeda(saldo, movimentoPagamentos);
+  const saldoFinal = saldo + movimentoPagamentos;
 
   if (!prestacaoIgnoradaId) cacheSaldoJardas.set(dataFim, saldoFinal);
 
@@ -519,57 +951,65 @@ function atualizarCampoValorPagoGuia() {
   if (aceitaValor && Number(campoValor.value) === 0) campoValor.value = '';
 }
 
-function calcularComissaoJardasPorAlmoco(almocaram, taxa = config.comissao) {
-  return arredondar2((Number(almocaram) || 0) * (Number(taxa) || 0));
+function calcularComissaoAgencia(nome, adultos) {
+  return ehAgenciaComissionada(nome)
+    ? (Number(adultos) || 0) * config.comissao
+    : 0;
 }
 
 function valorFaturamentoRegistro(registro) {
-  const bruto = registro?.faturamento;
+  const salvo = Number(registro?.faturamento);
+  if (Number.isFinite(salvo)) return salvo;
 
-  if (bruto !== undefined && bruto !== null && bruto !== '') {
-    const numero = Number(bruto);
-    if (Number.isFinite(numero)) return arredondar2(numero);
-  }
+  const valorAdulto = Number(registro?.valorAdultoAplicado) || 60;
+  const valorCrianca = Number(registro?.valorCriancaAplicado) || 35;
 
-  const valorAdulto = arredondar2(Number(registro?.valorAdultoAplicado) || config.adulto || 60);
-  const valorCrianca = arredondar2(Number(registro?.valorCriancaAplicado) || config.crianca || 35);
-
-  return arredondar2(
-    ((Number(registro?.adultos) || 0) * valorAdulto) +
-    ((Number(registro?.criancas) || 0) * valorCrianca)
-  );
+  return ((Number(registro?.adultos) || 0) * valorAdulto) +
+    ((Number(registro?.criancas) || 0) * valorCrianca);
 }
 
 function valorAdultoRegistro(registro) {
-  return arredondar2(Number(registro?.valorAdultoAplicado) || config.adulto || 60);
+  return Number(registro?.valorAdultoAplicado) || 60;
 }
 
 function valorComissaoRegistro(registro) {
-  if (!registro || !ehAgenciaComissionada(registro.agencia)) return 0;
+  if (!ehAgenciaComissionada(registro?.agencia)) return 0;
 
-  const taxa = arredondar2(Number(registro.comissaoPorAdultoAplicada) || config.comissao || 5);
+  const taxa = Number(registro?.comissaoPorAdultoAplicada) || 5;
+  const almocaram = Number(registro?.almocaram);
 
-  const temAlmocaram = registro.almocaram !== undefined && registro.almocaram !== null;
+  if (Number.isFinite(almocaram)) return Math.max(0, almocaram) * taxa;
 
-  if (temAlmocaram) {
-    return calcularComissaoJardasPorAlmoco(registro.almocaram, taxa);
-  }
-
-  const salva = Number(registro.comissao);
-  if (Number.isFinite(salva)) return arredondar2(salva);
+  const salva = Number(registro?.comissao);
+  if (Number.isFinite(salva)) return salva;
 
   return 0;
 }
 
-// VOUCHER JARDAS — NOVO PADRÃO
+function formatarValorCurto(valor) {
+  return (Number(valor) || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+
+function descricaoGuiaVoucher(guia) {
+  const criancas = guia.criancas > 0 ? ` ${guia.criancas}chd` : '';
+  const pagamento = guia.valorPago > 0
+    ? `  pg ${formatarValorCurto(guia.valorPago)} ${nomeFormaPagamentoGuia(guia.formaPagamento).toLocaleLowerCase('pt-BR')}`
+    : '';
+
+  return `${guia.nome}  ${guia.adultos} pax${criancas}${pagamento}`;
+}
+
 function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
   const largura = 1080;
   const margem = 64;
   const alturaCabecalho = 230;
-  const alturaCartaoDia = 560;
 
-  const alturasDias = voucher.dias.map(() => alturaCartaoDia);
-  const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + 60;
+  const alturasDias = voucher.dias.map(dia => 560 + (dia.guias.length * 58));
+  const alturaResumo = voucher.dias.length > 1 ? 660 : 460;
+  const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
 
   const canvas = document.createElement('canvas');
   canvas.width = largura;
@@ -577,20 +1017,24 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
 
   const ctx = canvas.getContext('2d');
 
-  const formatarDataCurta = data => {
-    if (!dataValidaISO(data)) return '--';
-    const [ano, mes, dia] = data.split('-');
-    return `${dia}/${mes}/${ano.slice(2)}`;
-  };
+  ctx.fillStyle = '#eef2f7';
+  ctx.fillRect(0, 0, largura, altura);
 
-  const formatarValorSinal = valor => {
-    const numero = arredondar2(valor);
+  ctx.fillStyle = '#14532d';
+  ctx.fillRect(0, 0, largura, alturaCabecalho);
 
-    if (numero < -0.009) return `- ${formatarMoeda(Math.abs(numero))}`;
-    if (numero > 0.009) return `+ ${formatarMoeda(numero)}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 58px Arial, sans-serif';
+  ctx.fillText('CONTAS JARDAS', margem, 92);
 
-    return formatarMoeda(0);
-  };
+  ctx.font = '34px Arial, sans-serif';
+  ctx.fillText(`${formatarDataRelatorio(voucher.dataInicio)} a ${formatarDataRelatorio(voucher.dataFim)}`, margem, 155);
+
+  ctx.font = '26px Arial, sans-serif';
+  ctx.fillStyle = '#bbf7d0';
+  ctx.fillText('Controle Catamarã', margem, 202);
+
+  let y = alturaCabecalho + 34;
 
   const desenharLinha = (texto, x, posY, tamanho = 32, cor = '#1f2937', negrito = false) => {
     let tamanhoAjustado = tamanho;
@@ -604,220 +1048,141 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
     }
 
     ctx.fillStyle = cor;
-    ctx.textAlign = 'left';
     ctx.fillText(texto, x, posY);
   };
 
-  const desenharLinhaDupla = (
-    esquerda,
-    direita,
-    posY,
-    corEsquerda,
-    corDireita,
-    tamanhoEsquerda = 28,
-    tamanhoDireita = 34
-  ) => {
-    const xEsquerda = margem + 34;
-    const xDireita = largura - margem - 34;
-
-    let tamanhoEsquerdaAtual = tamanhoEsquerda;
-    ctx.textAlign = 'left';
-    ctx.font = `bold ${tamanhoEsquerdaAtual}px Arial, sans-serif`;
-
-    while (ctx.measureText(esquerda).width > 480 && tamanhoEsquerdaAtual > 18) {
-      tamanhoEsquerdaAtual -= 2;
-      ctx.font = `bold ${tamanhoEsquerdaAtual}px Arial, sans-serif`;
-    }
-
-    ctx.fillStyle = corEsquerda;
-    ctx.fillText(esquerda, xEsquerda, posY);
-
-    let tamanhoDireitaAtual = tamanhoDireita;
-    ctx.font = `bold ${tamanhoDireitaAtual}px Arial, sans-serif`;
-
-    while (ctx.measureText(direita).width > 400 && tamanhoDireitaAtual > 18) {
-      tamanhoDireitaAtual -= 2;
-      ctx.font = `bold ${tamanhoDireitaAtual}px Arial, sans-serif`;
-    }
-
-    ctx.textAlign = 'right';
-    ctx.fillStyle = corDireita;
-    ctx.fillText(direita, xDireita, posY);
-
-    ctx.textAlign = 'left';
-  };
-
-  // Fundo geral
-  ctx.fillStyle = '#eef2f7';
-  ctx.fillRect(0, 0, largura, altura);
-
-  // Cabeçalho
-  ctx.fillStyle = '#14532d';
-  ctx.fillRect(0, 0, largura, alturaCabecalho);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 58px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('CONTAS JARDAS', margem, 92);
-
-  ctx.font = '34px Arial, sans-serif';
-  ctx.fillText(
-    `${formatarDataRelatorio(voucher.dataInicio)} a ${formatarDataRelatorio(voucher.dataFim)}`,
-    margem,
-    155
-  );
-
-  ctx.font = '26px Arial, sans-serif';
-  ctx.fillStyle = '#bbf7d0';
-  ctx.fillText('Controle Catamarã', margem, 202);
-
-  const vermelho = '#b91c1c';
-  const azul = '#1d4ed8';
-  const cinza = '#6b7280';
-  const preto = '#111827';
-
-  let y = alturaCabecalho + 30;
-
-  voucher.dias.forEach((dia) => {
-    const alturaCartao = alturaCartaoDia - 26;
+  voucher.dias.forEach((dia, indice) => {
+    const alturaDia = alturasDias[indice] - 26;
 
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
 
     if (typeof ctx.roundRect === 'function') {
-      ctx.roundRect(margem, y, largura - (margem * 2), alturaCartao, 24);
+      ctx.roundRect(margem, y, largura - (margem * 2), alturaDia, 24);
     } else {
-      ctx.rect(margem, y, largura - (margem * 2), alturaCartao);
+      ctx.rect(margem, y, largura - (margem * 2), alturaDia);
     }
 
     ctx.fill();
 
-    const dataSaldoAcumulado = deslocarData(dia.data, -1);
+    let linhaY = y + 62;
 
-    const saldoAnterior = arredondar2(Number(dia.saldoAnteriorDoDia ?? dia.saldoAnterior ?? 0) || 0);
+    desenharLinha(formatarDataRelatorio(dia.data), margem + 34, linhaY, 40, '#14532d', true);
+    linhaY += 62;
 
-    const quantidadePassagens = Number(
-      dia.passageirosPagantes ?? ((Number(dia.adultos) || 0) + (Number(dia.criancas) || 0))
-    ) || 0;
+    dia.guias.forEach(guia => {
+      desenharLinha(descricaoGuiaVoucher(guia), margem + 34, linhaY, 31, '#111827');
+      linhaY += 58;
+    });
 
-    const passagens = arredondar2(Number(dia.passagens) || 0);
+    ctx.strokeStyle = '#d1d5db';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(margem + 34, linhaY - 15);
+    ctx.lineTo(largura - margem - 34, linhaY - 15);
+    ctx.stroke();
 
-    const pagoGuia = arredondar2(Number(dia.valorPago) || 0);
-
-    const quantidadeCortesias = Number(dia.cortesiasConcedidas) || 0;
-    const valorCortesias = arredondar2(Number(dia.valorCortesiasConcedidas) || 0);
-
-    const quantidadeAlmocos = Number(dia.almocaram) || 0;
-    const valorAlmocos = arredondar2(Number(dia.comissao) || 0);
-
-    const saldoJardas = arredondar2(Number(dia.saldoAposODia ?? dia.saldo ?? 0) || 0);
-
-    // Data do dia
     desenharLinha(
-      formatarDataRelatorio(dia.data),
+      dia.fechamentoNoDia
+        ? 'Fechamento realizado = contas zeradas'
+        : (dia.creditoDoDia > 0
+            ? `Crédito gerado no dia = ${formatarValorCurto(dia.creditoDoDia)}`
+            : `Valor devido do dia = ${formatarValorCurto(dia.valorDevido)}`),
       margem + 34,
-      y + 64,
-      40,
-      '#14532d',
-      true
+      linhaY + 30,
+      28,
+      dia.fechamentoNoDia ? '#15803d' : '#475569',
+      dia.fechamentoNoDia
     );
 
-    let posY = y + 140;
+    desenharLinha(`Total de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}`, margem + 34, linhaY + 78, 31, '#1f2937', true);
+    desenharLinha(`Cortesias concedidas = ${dia.cortesiasConcedidas}`, margem + 34, linhaY + 126, 31);
+    desenharLinha(`Valor total = ${formatarValorCurto(dia.passagens)}`, margem + 34, linhaY + 174, 31);
+    desenharLinha(`Almoço = ${formatarValorCurto(dia.comissao)}`, margem + 34, linhaY + 222, 31);
 
-    // Saldo acumulado
-    const corSaldoAcumulado = saldoAnterior < -0.009
-      ? vermelho
-      : (saldoAnterior > 0.009 ? azul : cinza);
+    let calculo = `${formatarValorCurto(dia.passagens)}`;
+    if (dia.valorPago > 0) calculo += ` - ${formatarValorCurto(dia.valorPago)} pago`;
+    calculo += ` - ${formatarValorCurto(dia.comissao)} almoço`;
+    if (dia.valorCortesiasConcedidas > 0) calculo += ` - ${formatarValorCurto(dia.valorCortesiasConcedidas)} cortesias`;
+    if (dia.valorAbatido > 0) calculo += ` - ${formatarValorCurto(dia.valorAbatido)} pagamento abatido`;
 
-    desenharLinhaDupla(
-      `Saldo acumulado ${formatarDataCurta(dataSaldoAcumulado)}`,
-      formatarValorSinal(saldoAnterior),
-      posY,
-      preto,
-      corSaldoAcumulado
-    );
+    desenharLinha(`Cálculo = ${calculo}`, margem + 34, linhaY + 270, 27, '#475569');
 
-    posY += 58;
+    const restanteDia = Math.max(0, Number(dia.restante) || 0);
+    const corSaldo = restanteDia > 0.009 ? '#b91c1c' : '#15803d';
 
-    // Passagens do dia
-    const textoPassagens = passagens > 0.009
-      ? `- ${formatarMoeda(passagens)}`
-      : formatarMoeda(0);
+    desenharLinha('RESTANTE DESTE DIA', margem + 34, linhaY + 340, 30, '#475569', true);
+    desenharLinha(formatarMoeda(restanteDia), margem + 34, linhaY + 408, 46, corSaldo, true);
 
-    desenharLinhaDupla(
-      `Passagens do dia ${quantidadePassagens} und.`,
-      textoPassagens,
-      posY,
-      preto,
-      passagens > 0.009 ? vermelho : cinza
-    );
-
-    posY += 78;
-
-    // Pago pelo guia no dia
-    desenharLinhaDupla(
-      'Pago pelo guia no dia',
-      formatarValorSinal(pagoGuia),
-      posY,
-      preto,
-      pagoGuia > 0.009 ? azul : cinza
-    );
-
-    posY += 58;
-
-    // Cortesia do dia
-    desenharLinhaDupla(
-      `Cortesia do dia ${quantidadeCortesias} und.`,
-      formatarValorSinal(valorCortesias),
-      posY,
-      preto,
-      valorCortesias > 0.009 ? azul : cinza
-    );
-
-    posY += 58;
-
-    // Almoços do dia
-    desenharLinhaDupla(
-      `Almoços do dia ${quantidadeAlmocos} und.`,
-      formatarValorSinal(valorAlmocos),
-      posY,
-      preto,
-      valorAlmocos > 0.009 ? azul : cinza
-    );
-
-    posY += 82;
-
-    // Saldo Jardas
-    const corSaldoJardas = saldoJardas < -0.009
-      ? vermelho
-      : (saldoJardas > 0.009 ? azul : cinza);
-
-    desenharLinhaDupla(
-      'Saldo Jardas',
-      formatarValorSinal(saldoJardas),
-      posY,
-      preto,
-      corSaldoJardas,
-      34,
-      42
-    );
-
-    y += alturaCartaoDia;
+    y += alturasDias[indice];
   });
+
+  if (voucher.dias.length > 1) {
+    ctx.fillStyle = '#dcfce7';
+    ctx.beginPath();
+
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(margem, y, largura - (margem * 2), alturaResumo - 30, 24);
+    } else {
+      ctx.rect(margem, y, largura - (margem * 2), alturaResumo - 30);
+    }
+
+    ctx.fill();
+
+    let resumoY = y + 58;
+
+    desenharLinha('TOTAL DO PERÍODO', margem + 34, resumoY, 38, '#14532d', true);
+    desenharLinha(`Saldo anterior = ${situacaoSaldoJardas(voucher.saldoAnterior).texto}`, margem + 34, resumoY + 58, 28, '#475569');
+    desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 116, 30);
+    desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 174, 30);
+    desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 232, 30);
+    desenharLinha(`Almoço = ${formatarValorCurto(voucher.comissao)}`, margem + 34, resumoY + 290, 30);
+    desenharLinha(`Pagamentos de guias = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 348, 30);
+    desenharLinha(`Pagamentos abatidos = ${formatarValorCurto(voucher.valorAbatido)}`, margem + 34, resumoY + 396, 30);
+    desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY + 454, 30, '#475569', true);
+    desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 522, 46, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
+  } else {
+    ctx.fillStyle = '#dcfce7';
+    ctx.beginPath();
+
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(margem, y, largura - (margem * 2), alturaResumo - 30, 24);
+    } else {
+      ctx.rect(margem, y, largura - (margem * 2), alturaResumo - 30);
+    }
+
+    ctx.fill();
+
+    const resumoY = y + 58;
+    const dataSaldoAnterior = deslocarData(voucher.dataInicio, -1);
+    const movimentoDoDia = voucher.saldo - voucher.saldoAnterior;
+
+    desenharLinha('COMPOSIÇÃO DO SALDO', margem + 34, resumoY, 34, '#14532d', true);
+    desenharLinha(
+      `Saldo acumulado até ${formatarDataRelatorio(dataSaldoAnterior)} = ${situacaoSaldoJardas(voucher.saldoAnterior).texto}`,
+      margem + 34,
+      resumoY + 64,
+      28,
+      '#475569'
+    );
+    desenharLinha(
+      `Movimento de ${formatarDataRelatorio(voucher.dataInicio)} = ${situacaoSaldoJardas(movimentoDoDia).texto}`,
+      margem + 34,
+      resumoY + 122,
+      28,
+      '#475569'
+    );
+    desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY + 206, 30, '#475569', true);
+    desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 282, 48, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
+  }
 
   const dataUrl = canvas.toDataURL('image/png');
   const binario = atob(dataUrl.split(',')[1]);
   const bytes = new Uint8Array(binario.length);
 
-  for (let i = 0; i < binario.length; i++) {
-    bytes[i] = binario.charCodeAt(i);
-  }
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
 
-  return new File(
-    [bytes],
-    `voucher-jardas-${voucher.dataInicio}-${voucher.dataFim}${sufixoArquivo}.png`,
-    { type: 'image/png' }
-  );
+  return new File([bytes], `voucher-jardas-${voucher.dataInicio}-${voucher.dataFim}${sufixoArquivo}.png`, { type: 'image/png' });
 }
 
 function criarArquivosVoucherJardas(voucher) {
@@ -943,7 +1308,6 @@ function obterDadosRelatorioBarco() {
   const dados = ordenarPorDataHora(
     registrosEmbarcacoes.filter(e =>
       mesmaEmbarcacao(e.catamaran, nome) &&
-      dataValidaISO(e.data) &&
       e.data >= dataInicio &&
       e.data <= dataFim
     )
@@ -959,7 +1323,7 @@ function totalizarRelatorioBarco(dados) {
     total.bebes += Number(registro.bebes) || 0;
     total.cortesia += Number(registro.cortesia) || 0;
     total.totalPax += Number(registro.totalPax) || 0;
-    total.valorRepasse = somarMoeda(total.valorRepasse, registro.valorRepasse);
+    total.valorRepasse += Number(registro.valorRepasse) || 0;
     return total;
   }, {
     adultos: 0,
@@ -979,7 +1343,7 @@ function agruparRelatorioBarcoPorDia(dados) {
   }, {});
 
   return Object.keys(grupos)
-    .sort((a, b) => a.localeCompare(b))
+    .sort((a, b) => b.localeCompare(a))
     .map(data => ({
       data,
       lancamentos: grupos[data],
@@ -1008,7 +1372,6 @@ function atualizarOpcoesRelatorioBarco() {
 }
 
 function formatarDataRelatorio(data) {
-  if (!dataValidaISO(data)) return '--';
   const [ano, mes, dia] = data.split('-');
   return `${dia}/${mes}/${ano}`;
 }
@@ -1020,7 +1383,7 @@ function atualizarPeriodoRelatorioBarco(redefinirPeriodo = false) {
 
   const datas = [...new Set(
     registrosEmbarcacoes
-      .filter(registro => mesmaEmbarcacao(registro.catamaran, nome) && dataValidaISO(registro.data))
+      .filter(registro => mesmaEmbarcacao(registro.catamaran, nome) && registro.data)
       .map(registro => registro.data)
   )].sort((a, b) => a.localeCompare(b));
 
@@ -1049,11 +1412,9 @@ function atualizarPeriodoRelatorioBarco(redefinirPeriodo = false) {
     }
   }
 
-  if (redefinirPeriodo) {
-    document.getElementById('relatorio-barco-resultado').innerHTML =
-      '<p class="text-gray-500 text-sm text-center">Confira o período e toque em gerar relatório.</p>';
-    document.getElementById('exportar-relatorio-barco').classList.add('hidden');
-  }
+  document.getElementById('relatorio-barco-resultado').innerHTML =
+    '<p class="text-gray-500 text-sm text-center">Confira o período e toque em gerar relatório.</p>';
+  document.getElementById('exportar-relatorio-barco').classList.add('hidden');
 }
 
 function gerarRelatorioBarco() {
@@ -1148,14 +1509,10 @@ function gerarRelatorioBarco() {
 
 function ordenarPorDataHora(array) {
   return array.sort((a, b) => {
-    const dataA = String(a.data || '');
-    const dataB = String(b.data || '');
-
-    if (dataA === dataB) {
-      return String(a.hora || '').localeCompare(String(b.hora || ''));
+    if (a.data === b.data) {
+      return (a.hora || '').localeCompare(b.hora || '');
     }
-
-    return dataA.localeCompare(dataB);
+    return a.data.localeCompare(b.data);
   });
 }
 
@@ -1172,8 +1529,6 @@ function atualizarIndicadorSync(online) {
 }
 
 function atualizarDataGlobal(novaData) {
-  if (!dataValidaISO(novaData)) novaData = dataLocalHoje();
-
   dataGlobal = novaData;
   document.getElementById('dataGlobal').value = novaData;
   atualizarTela();
@@ -1228,7 +1583,7 @@ function calcularValorJacilene(adultos) {
   return {
     calculavel: true,
     paxAplicado,
-    valor: arredondar2(tabelaJacilene[paxAplicado])
+    valor: tabelaJacilene[paxAplicado]
   };
 }
 
@@ -1281,7 +1636,7 @@ function atualizarJacilene() {
   const saldoCard = document.getElementById('jacilene-saldo-card');
 
   const atualizarSaldoDevedor = valor => {
-    const saldo = arredondar2(Math.max(0, Number(valor) || 0));
+    const saldo = Math.max(0, Number(valor) || 0);
     saldoElemento.innerText = formatarMoeda(saldo);
     saldoElemento.className = `font-bold ${saldo > 0 ? 'text-red-600' : 'text-green-700'}`;
     saldoCard.className = `${saldo > 0 ? 'bg-red-50' : 'bg-green-50'} rounded-lg p-2 text-right`;
@@ -1308,7 +1663,6 @@ function atualizarJacilene() {
   const porData = registrosEmbarcacoes
     .filter(registro =>
       mesmaEmbarcacao(registro.catamaran, 'Velho Bill') &&
-      dataValidaISO(registro.data) &&
       registro.data >= dataInicio &&
       registro.data <= dataFim
     )
@@ -1356,12 +1710,13 @@ function atualizarJacilene() {
     }
 
     diasCalculados += 1;
-    total = somarMoeda(total, calculo.valor);
-
-    saldoDevedor = somarMoeda(
-      saldoDevedor,
-      obterResumoPagamentoDiario('jacilene', 'Jacilene', data, calculo.valor).saldoRestante
-    );
+    total += calculo.valor;
+    saldoDevedor += obterResumoPagamentoDiario(
+      'jacilene',
+      'Jacilene',
+      data,
+      calculo.valor
+    ).saldoRestante;
 
     const limite = dadosDia.adultos > 18
       ? ` · cálculo limitado a 18 PAX`
@@ -1422,10 +1777,8 @@ function atualizarTotaisForm() {
   const agencia = document.getElementById('agenciaGuia').value.trim();
 
   const totalEmb = ad + cr + bb + cort;
-  const faturamento = arredondar2((ad * arredondar2(config.adulto)) + (cr * arredondar2(config.crianca)));
-  const comissao = ehAgenciaComissionada(agencia)
-    ? calcularComissaoJardasPorAlmoco(alm, config.comissao)
-    : 0;
+  const faturamento = (ad * config.adulto) + (cr * config.crianca);
+  const comissao = calcularComissaoAgencia(agencia, alm);
 
   document.getElementById('totalEmbarque').innerText = totalEmb;
   document.getElementById('faturamentoEmbarque').innerText = formatarMoeda(faturamento);
@@ -1445,7 +1798,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Inicialização
 document.getElementById('dataHoje').innerText = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 document.getElementById('dataGlobal').value = dataLocalHoje();
 document.getElementById('dataInicio').value = dataLocalHoje();
@@ -1453,16 +1805,9 @@ document.getElementById('dataFim').value = dataLocalHoje();
 document.getElementById('jacileneDataInicio').value = primeiroDiaMesAtual();
 document.getElementById('jacileneDataFim').value = dataLocalHoje();
 
-carregarConfig();
-
-// CARREGAR DADOS DO FIREBASE
 function encerrarCarregamentoDados() {
   canceladoresSnapshot.forEach(cancelar => {
-    try {
-      cancelar();
-    } catch (erro) {
-      console.warn('Falha ao encerrar sincronização:', erro);
-    }
+    try { cancelar(); } catch (erro) { console.warn('Falha ao encerrar sincronização:', erro); }
   });
 
   canceladoresSnapshot = [];
@@ -1530,11 +1875,7 @@ function carregarDados() {
     canceladoresSnapshot.push(db.collection('config').doc('principal').onSnapshot((doc) => {
       try {
         if (doc.exists) {
-          config = {
-            adulto: arredondar2(Number(doc.data().adulto) || 60),
-            crianca: arredondar2(Number(doc.data().crianca) || 35),
-            comissao: arredondar2(Number(doc.data().comissao) || 5)
-          };
+          config = doc.data();
           carregarConfig();
         }
       } catch (err) {
@@ -1585,7 +1926,7 @@ function editarGuia(id) {
 
   atualizarCampoValorPagoGuia();
 
-  document.getElementById('valorPagoGuia').value = arredondar2(registro.valorPago);
+  document.getElementById('valorPagoGuia').value = Number(registro.valorPago) || 0;
   document.getElementById('adultosGuia').value = Number(registro.adultos) || 0;
   document.getElementById('criancasGuia').value = Number(registro.criancas) || 0;
   document.getElementById('bebesGuia').value = Number(registro.bebes) || 0;
@@ -1606,10 +1947,7 @@ function salvarGuia() {
     ? registrosGuias.find(item => item.id === guiaEmEdicaoId)
     : null;
 
-  let data = registroExistente?.data || dataGlobal;
-
-  if (!dataValidaISO(data)) data = dataGlobal;
-  if (!dataValidaISO(data)) return alert('Data inválida. Selecione uma data válida.');
+  const data = registroExistente?.data || dataGlobal;
 
   const guia = document.getElementById('nomeGuia').value.trim();
   let agencia = document.getElementById('agenciaGuia').value.trim();
@@ -1644,19 +1982,17 @@ function salvarGuia() {
 
   const totalEmbarque = ad + cr + bb + cort;
 
-  const valorAdultoAplicado = arredondar2(registroExistente?.valorAdultoAplicado ?? config.adulto);
-  const valorCriancaAplicado = arredondar2(registroExistente?.valorCriancaAplicado ?? config.crianca);
-  const comissaoPorAlmocoAplicada = arredondar2(registroExistente?.comissaoPorAdultoAplicada ?? config.comissao);
+  const valorAdultoAplicado = registroExistente?.valorAdultoAplicado ?? 60;
+  const valorCriancaAplicado = registroExistente?.valorCriancaAplicado ?? 35;
+  const comissaoPorAdultoAplicada = registroExistente?.comissaoPorAdultoAplicada ?? 5;
 
   const tarifasNovas = !registroExistente;
 
-  const faturamento = arredondar2(
-    (ad * (tarifasNovas ? arredondar2(config.adulto) : valorAdultoAplicado)) +
-    (cr * (tarifasNovas ? arredondar2(config.crianca) : valorCriancaAplicado))
-  );
+  const faturamento = (ad * (tarifasNovas ? config.adulto : valorAdultoAplicado)) +
+    (cr * (tarifasNovas ? config.crianca : valorCriancaAplicado));
 
   const comissao = ehAgenciaComissionada(agencia)
-    ? calcularComissaoJardasPorAlmoco(alm, tarifasNovas ? config.comissao : comissaoPorAlmocoAplicada)
+    ? Math.max(0, alm) * (tarifasNovas ? config.comissao : comissaoPorAdultoAplicada)
     : 0;
 
   const dadosRegistro = {
@@ -1673,9 +2009,9 @@ function salvarGuia() {
     almocaram: alm,
     faturamento,
     comissao,
-    valorAdultoAplicado: tarifasNovas ? arredondar2(config.adulto) : valorAdultoAplicado,
-    valorCriancaAplicado: tarifasNovas ? arredondar2(config.crianca) : valorCriancaAplicado,
-    comissaoPorAdultoAplicada: tarifasNovas ? arredondar2(config.comissao) : comissaoPorAlmocoAplicada,
+    valorAdultoAplicado: tarifasNovas ? config.adulto : valorAdultoAplicado,
+    valorCriancaAplicado: tarifasNovas ? config.crianca : valorCriancaAplicado,
+    comissaoPorAdultoAplicada: tarifasNovas ? config.comissao : comissaoPorAdultoAplicada,
     totalPax: totalEmbarque
   };
 
@@ -1701,9 +2037,6 @@ function salvarGuia() {
 
 function salvarBarco() {
   const data = dataGlobal;
-
-  if (!dataValidaISO(data)) return alert('Data inválida. Selecione uma data válida.');
-
   const barco = nomeCanonicoEmbarcacao(document.getElementById('nomeBarco').value.trim());
 
   const ad = obterNumero('adultosBarco');
@@ -1720,7 +2053,7 @@ function salvarBarco() {
   const totalPax = ad + cr + bb + cort;
   if (totalPax <= 0) return alert('Informe pelo menos uma pessoa.');
 
-  const faturamento = arredondar2((ad * arredondar2(config.adulto)) + (cr * arredondar2(config.crianca)));
+  const faturamento = (ad * config.adulto) + (cr * config.crianca);
 
   const novoRegistro = {
     data,
@@ -1732,8 +2065,8 @@ function salvarBarco() {
     cortesia: cort,
     totalPax,
     valorRepasse: faturamento,
-    valorAdultoAplicado: arredondar2(config.adulto),
-    valorCriancaAplicado: arredondar2(config.crianca),
+    valorAdultoAplicado: config.adulto,
+    valorCriancaAplicado: config.crianca,
     timestamp: firebase.firestore.FieldValue.serverTimestamp()
   };
 
@@ -1777,13 +2110,13 @@ function obterPrestacaoDiaria(tipo, nome, dataMovimento) {
 }
 
 function calcularResumoValoresPagamento(pagamentos, valorTotal) {
-  const totalDoDia = arredondar2(valorTotal);
+  const totalDoDia = Number(valorTotal) || 0;
 
   const totalPago = pagamentos.reduce((total, pagamento) =>
-    somarMoeda(total, Number(pagamento.valor) || 0),
+    total + Math.max(0, Number(pagamento.valor) || 0),
   0);
 
-  const saldoRestante = arredondar2(Math.max(0, totalDoDia - totalPago));
+  const saldoRestante = Math.max(0, totalDoDia - totalPago);
 
   return {
     totalPago,
@@ -1807,7 +2140,7 @@ function atualizarPreviaPagamento() {
 
   const elemento = document.getElementById('pagamento-restante');
   const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
-  const valorPagamento = arredondar2(Number(valorDigitado));
+  const valorPagamento = Number(valorDigitado);
 
   if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
     elemento.className = 'text-xs font-bold text-red-600 mb-1';
@@ -1828,7 +2161,7 @@ function atualizarPreviaPagamento() {
     return;
   }
 
-  const restante = arredondar2(Math.max(0, pagamentoEmEdicao.valorMaximo - valorPagamento));
+  const restante = Math.max(0, pagamentoEmEdicao.valorMaximo - valorPagamento);
 
   elemento.className = restante < 0.01
     ? 'text-xs font-bold text-green-700 mb-1'
@@ -1842,7 +2175,7 @@ function atualizarPreviaPagamento() {
 function atualizarCampoSaldoPrestacao() {
   if (!pagamentoEmEdicao || pagamentoEmEdicao.tipo !== 'agencia') return;
 
-  const valorDigitado = arredondar2(Number(String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.')) || 0);
+  const valorDigitado = Number(String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.')) || 0;
 
   const saldoAntes = calcularSaldoJardasAte(
     pagamentoEmEdicao.dataMovimento,
@@ -1855,7 +2188,7 @@ function atualizarCampoSaldoPrestacao() {
     ? 'jardas-deve'
     : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
 
-  const valorSaldo = arredondar2(Math.abs(saldoAutomatico));
+  const valorSaldo = Math.abs(saldoAutomatico);
 
   document.getElementById('saldo-prestacao-tipo').value = tipoSaldo;
   document.getElementById('saldo-prestacao-valor').value = valorSaldo > 0.009 ? valorSaldo.toFixed(2) : '';
@@ -1864,12 +2197,8 @@ function atualizarCampoSaldoPrestacao() {
 }
 
 function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = null) {
-  if (!dataValidaISO(dataMovimento)) return alert('Data inválida para pagamento.');
-
-  const ultimoFechamento = dataUltimoFechamentoJardas();
-
-  if (tipo === 'agencia' && !prestacaoId && ultimoFechamento && dataMovimento <= ultimoFechamento) {
-    return alert(`As contas já foram fechadas até ${formatarDataRelatorio(ultimoFechamento)}. Registre o pagamento em uma data posterior.`);
+  if (tipo === 'agencia' && !prestacaoId && dataMovimento <= dataUltimoFechamentoJardas()) {
+    return alert(`As contas já foram fechadas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}. Registre o pagamento em uma data posterior.`);
   }
 
   const nomePrestacao = tipo === 'catamara' ? nomeCanonicoEmbarcacao(nome) : nome;
@@ -1880,20 +2209,18 @@ function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = nu
     ? pagamentos.find(p => p.id === prestacaoId)
     : null;
 
-  const valorTotal = arredondar2(valor);
+  const valorTotal = Number(valor) || 0;
 
   const valorPagoOutros = pagamentos.reduce((total, pagamento) =>
     pagamento.id === existente?.id
       ? total
-      : somarMoeda(total, Number(pagamento.valor) || 0),
+      : total + Math.max(0, Number(pagamento.valor) || 0),
   0);
 
-  const valorMaximo = tipo === 'agencia'
-    ? Number.POSITIVE_INFINITY
-    : arredondar2(Math.max(0, valorTotal - valorPagoOutros));
+  const valorMaximo = tipo === 'agencia' ? Number.POSITIVE_INFINITY : Math.max(0, valorTotal - valorPagoOutros);
 
   const valorInicial = existente
-    ? arredondar2(Number(existente.valor) || 0)
+    ? Math.max(0, Number(existente.valor) || 0)
     : (tipo === 'agencia' ? 0 : valorMaximo);
 
   pagamentoEmEdicao = {
@@ -1936,11 +2263,8 @@ function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = nu
 
   campoValor.value = valorInicial.toFixed(2);
 
-  if (tipo === 'agencia') {
-    campoValor.removeAttribute('max');
-  } else {
-    campoValor.max = valorMaximo.toFixed(2);
-  }
+  if (tipo === 'agencia') campoValor.removeAttribute('max');
+  else campoValor.max = valorMaximo.toFixed(2);
 
   campoValor.min = '0.01';
   campoValor.readOnly = false;
@@ -1958,9 +2282,7 @@ function abrirPagamentoDiario(tipo, nome, dataMovimento, valor, prestacaoId = nu
 
   document.getElementById('pagamento-observacao').value = existente?.observacao || '';
 
-  document.getElementById('pagamento-titulo').innerText = tipo === 'agencia'
-    ? 'Registrar pagamento Jardas'
-    : 'Registrar pagamento';
+  document.getElementById('pagamento-titulo').innerText = tipo === 'agencia' ? 'Registrar pagamento Jardas' : 'Registrar pagamento';
 
   document.getElementById('pagamento-subtitulo').innerText = tipo === 'agencia'
     ? 'Informe o valor pago. O saldo anterior será compensado automaticamente.'
@@ -2005,14 +2327,10 @@ function salvarPagamentoDiario() {
   if (!observacao) return alert('Informe como o pagamento foi feito ou escreva uma observação.');
 
   const valorDigitado = String(document.getElementById('pagamento-valor-parcela').value).replace(',', '.');
-  const valorPagamento = arredondar2(Number(valorDigitado));
+  const valorPagamento = Number(valorDigitado);
 
   if (!Number.isFinite(valorPagamento) || valorPagamento <= 0) {
     return alert('Informe um valor de pagamento maior que zero.');
-  }
-
-  if (pagamentoEmEdicao.tipo !== 'agencia' && valorPagamento > pagamentoEmEdicao.valorMaximo + 0.009) {
-    return alert(`O valor não pode ser maior que o saldo disponível de ${formatarMoeda(pagamentoEmEdicao.valorMaximo)}.`);
   }
 
   let saldoDeclaradoTipo = null;
@@ -2031,13 +2349,17 @@ function salvarPagamentoDiario() {
 
     const saldoAutomatico = aplicarPagamentoAoSaldo(saldoAntesPagamento, valorPagamento);
 
-    efeitoSaldo = arredondar2(saldoAutomatico - saldoAntesPagamento);
+    efeitoSaldo = saldoAutomatico - saldoAntesPagamento;
 
     saldoDeclaradoTipo = saldoAutomatico < -0.009
       ? 'jardas-deve'
       : (saldoAutomatico > 0.009 ? 'nos-devemos' : 'zerado');
 
-    saldoDeclaradoValor = arredondar2(Math.abs(saldoAutomatico));
+    saldoDeclaradoValor = Math.abs(saldoAutomatico);
+  }
+
+  if (pagamentoEmEdicao.tipo === 'catamara' && valorPagamento > pagamentoEmEdicao.valorMaximo + 0.009) {
+    return alert(`O valor não pode ser maior que o saldo disponível de ${formatarMoeda(pagamentoEmEdicao.valorMaximo)}.`);
   }
 
   const botao = document.getElementById('confirmar-pagamento');
@@ -2048,7 +2370,7 @@ function salvarPagamentoDiario() {
 
   const saldoAposPagamento = pagamentoEmEdicao.tipo === 'agencia'
     ? saldoDeclaradoValor
-    : arredondar2(Math.max(0, pagamentoEmEdicao.valorTotal - pagamentoEmEdicao.valorPagoOutros - valorPagamento));
+    : Math.max(0, pagamentoEmEdicao.valorTotal - pagamentoEmEdicao.valorPagoOutros - valorPagamento);
 
   const prestacao = {
     tipo: pagamentoEmEdicao.tipo,
@@ -2057,7 +2379,7 @@ function salvarPagamentoDiario() {
     periodoInicio: pagamentoEmEdicao.dataMovimento,
     periodoFim: pagamentoEmEdicao.dataMovimento,
     valor: valorPagamento,
-    valorTotalMovimento: arredondar2(pagamentoEmEdicao.valorTotal),
+    valorTotalMovimento: pagamentoEmEdicao.valorTotal,
     pagamentoParcial: saldoAposPagamento >= 0.01,
     statusPagamento: saldoAposPagamento < 0.01 ? 'quitado' : 'parcial',
     observacao,
@@ -2101,39 +2423,26 @@ function salvarPagamentoDiario() {
 }
 
 function zerarContasJardasAte(dataCorte) {
-  if (!dataValidaISO(dataCorte)) return alert('Escolha uma data válida.');
+  if (!dataCorte) return alert('Escolha a data até a qual deseja fechar as contas.');
 
   if (dataCorte > dataLocalHoje()) {
     return alert('Não é permitido fechar contas em uma data futura. Escolha hoje ou uma data anterior.');
   }
 
-  const ultimoFechamento = dataUltimoFechamentoJardas();
-
-  if (ultimoFechamento && dataCorte <= ultimoFechamento) {
-    return alert(`As contas já estão zeradas até ${formatarDataRelatorio(ultimoFechamento)}. Escolha uma data posterior.`);
+  if (dataCorte <= dataUltimoFechamentoJardas()) {
+    return alert(`As contas já estão zeradas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}. Escolha uma data posterior.`);
   }
 
-  const jaExisteFechamentoNestaData = prestacoes.some(p =>
-    p.tipo === 'agencia' &&
-    ehAgenciaComissionada(p.nome) &&
-    p.fechamentoGeral &&
-    p.dataMovimento === dataCorte
-  );
-
-  if (jaExisteFechamentoNestaData) {
-    return alert('Já existe um fechamento registrado nesta data.');
-  }
-
-  const saldoAtual = arredondar2(calcularSaldoJardasAte(dataCorte));
+  const saldoAtual = calcularSaldoJardasAte(dataCorte);
   const situacaoAtual = situacaoSaldoJardas(saldoAtual).texto;
 
-  const mensagem = `Fechar e zerar todas as contas com o Jardas até ${formatarDataRelatorio(dataCorte)}?\n\nSaldo que será compensado: ${situacaoAtual}\n\nO histórico não será apagado, mas as datas seguintes começarão do zero.`;
+  const mensagem = `Fechar e zerar todas as contas com o Jardas até ${formatarDataRelatorio(dataCorte)}?\nSaldo que será compensado: ${situacaoAtual}.\nO histórico não será apagado. Um fechamento ficará registrado e as contas seguintes começarão do zero.`;
 
   if (!confirm(mensagem)) return;
 
   const agora = new Date();
 
-  const registroFechamento = {
+  db.collection('prestacoes').add({
     tipo: 'agencia',
     nome: 'Jardas',
     dataMovimento: dataCorte,
@@ -2144,24 +2453,15 @@ function zerarContasJardasAte(dataCorte) {
     saldoAntesFechamento: saldoAtual,
     saldoDeclaradoTipo: 'zerado',
     saldoDeclaradoValor: 0,
-    efeitoSaldo: 0,
     statusPagamento: 'fechado',
     pagamentoParcial: false,
     observacao: `Contas compensadas e zeradas até ${formatarDataRelatorio(dataCorte)}`,
     dataPrestacao: dataLocalHoje(),
     horaPrestacao: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     timestamp: firebase.firestore.FieldValue.serverTimestamp()
-  };
-
-  const idFechamento = `fechamento-jardas-${dataCorte}`;
-
-  db.collection('prestacoes')
-    .doc(idFechamento)
-    .set(registroFechamento)
-    .then(() => {
-      alert(`✅ Contas zeradas até ${formatarDataRelatorio(dataCorte)}.\nSaldo compensado: ${situacaoAtual}\n\nO fechamento foi salvo no histórico.`);
-    })
-    .catch((error) => alert('Erro ao fechar as contas: ' + error.message));
+  }).then(() => {
+    alert(`✅ Contas zeradas até ${formatarDataRelatorio(dataCorte)}.\nO fechamento foi salvo no histórico.`);
+  }).catch((error) => alert('Erro ao fechar as contas: ' + error.message));
 }
 
 function detalheSaldoPrestacao(prestacao) {
@@ -2190,13 +2490,14 @@ function descricaoPagamentoJardas(prestacao) {
 
 function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalhes, baixaJardas = null) {
   const resumoPagamento = obterResumoPagamentoDiario(tipo, nome, dataMovimento, valor);
-  const valorNumerico = arredondar2(Number(valor) || 0);
-
   const nomeArgumento = escaparHTML(JSON.stringify(nome));
+  const valorNumerico = Number(valor) || 0;
 
   const classeCartao = tipo === 'agencia' && baixaJardas
     ? (baixaJardas.quitado ? 'bg-green-50 border-green-300' : (baixaJardas.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'))
-    : (resumoPagamento.quitado ? 'bg-green-50 border-green-300' : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'));
+    : (resumoPagamento.quitado
+        ? 'bg-green-50 border-green-300'
+        : (resumoPagamento.parcial ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'));
 
   const status = tipo === 'agencia'
     ? (ehDataFechamentoJardas(dataMovimento)
@@ -2245,22 +2546,16 @@ function renderizarLinhaPagamentoDiario(tipo, nome, dataMovimento, valor, detalh
     ? '<div class="text-xs text-green-700 font-semibold mt-2">Nenhum saldo pendente nesta data.</div>'
     : '<div class="text-xs text-gray-400 mt-2">Sem valor a pagar nesta data.</div>';
 
-  if (tipo === 'catamara' && valorNumerico > 0 && resumoPagamento.saldoRestante >= 0.01) {
+  if (valorNumerico > 0 && tipo === 'catamara' && resumoPagamento.saldoRestante >= 0.01) {
     botao = `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 ${resumoPagamento.parcial ? 'bg-yellow-600' : 'bg-green-600'} text-white text-xs font-bold py-2 rounded-lg">
       ${resumoPagamento.parcial ? '➕ Registrar outra parte' : '💰 Pagar total ou parcial'}
     </button>`;
-  } else if (tipo === 'agencia') {
-    const ultimoFechamento = dataUltimoFechamentoJardas();
-
-    botao = ultimoFechamento && dataMovimento <= ultimoFechamento
-      ? `<div class="text-xs text-gray-600 font-semibold mt-2">⚖️ Contas fechadas até ${formatarDataRelatorio(ultimoFechamento)}</div>`
+  } else if (tipo !== 'catamara') {
+    botao = dataMovimento <= dataUltimoFechamentoJardas()
+      ? `<div class="text-xs text-gray-600 font-semibold mt-2">⚖️ Contas fechadas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}</div>`
       : `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 bg-green-600 text-white text-xs font-bold py-2 rounded-lg">
           ➕ Registrar pagamento total ou parcial
         </button>`;
-  } else if (valorNumerico > 0 && resumoPagamento.saldoRestante >= 0.01) {
-    botao = `<button onclick="abrirPagamentoDiario('${tipo}', ${nomeArgumento}, '${dataMovimento}', ${valorNumerico})" class="w-full mt-2 bg-green-600 text-white text-xs font-bold py-2 rounded-lg">
-      ➕ Registrar pagamento total ou parcial
-    </button>`;
   }
 
   return `
@@ -2343,33 +2638,28 @@ function atualizarTela() {
   const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
 
   const contasGuias = ordenarPorDataHora(
-    registrosGuias.filter(e => dataValidaISO(e.data) && e.data >= dataInicio && e.data <= dataFim)
+    registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim)
   );
 
   const contasBarcos = ordenarPorDataHora(
-    registrosEmbarcacoes.filter(e => dataValidaISO(e.data) && e.data >= dataInicio && e.data <= dataFim)
+    registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim)
   );
 
-  // Lista Guias
   const listaGuias = document.getElementById('lista-guias');
   listaGuias.innerHTML = '';
 
-  let totPaxGuias = 0;
-  let totValorGuias = 0;
-  let totAlmocoGuias = 0;
-  let totComissaoGuias = 0;
+  let totPaxGuias = 0, totValorGuias = 0, totAlmocoGuias = 0, totComissaoGuias = 0;
 
   if (guiadosFiltrados.length === 0) {
     listaGuias.innerHTML = '<p class="text-gray-500 text-center text-sm">Nenhum guia registrado nesta data.</p>';
   } else {
     guiadosFiltrados.forEach(e => {
       const comissaoRegistro = valorComissaoRegistro(e);
-      const faturamentoRegistro = valorFaturamentoRegistro(e);
 
       totPaxGuias += Number(e.totalPax) || 0;
-      totValorGuias = somarMoeda(totValorGuias, faturamentoRegistro);
+      totValorGuias += Number(e.faturamento) || 0;
       totAlmocoGuias += Number(e.almocaram) || 0;
-      totComissaoGuias = somarMoeda(totComissaoGuias, comissaoRegistro);
+      totComissaoGuias += comissaoRegistro;
 
       listaGuias.innerHTML += `
         <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-green-500">
@@ -2388,7 +2678,7 @@ function atualizarTela() {
 
           <div class="flex justify-between text-xs mb-1">
             <span>🚤 ${Number(e.adultos) || 0}+${Number(e.criancas) || 0}+${Number(e.bebes) || 0}+${Number(e.cortesia) || 0} = ${Number(e.totalPax) || 0}</span>
-            <span class="font-bold text-green-600">${formatarMoeda(faturamentoRegistro)}</span>
+            <span class="font-bold text-green-600">${formatarMoeda(Number(e.faturamento) || 0)}</span>
           </div>
 
           <div class="text-xs font-semibold text-blue-700 mb-1">💳 Pagamento: ${escaparHTML(detalharPagamentoGuia(e.formaPagamento, e.valorPago))}</div>
@@ -2407,21 +2697,17 @@ function atualizarTela() {
   document.getElementById('total-guias-almoco').innerText = totAlmocoGuias;
   document.getElementById('total-guias-comissao').innerText = formatarMoeda(totComissaoGuias);
 
-  // Lista Barcos
   const listaBarcos = document.getElementById('lista-barcos');
   listaBarcos.innerHTML = '';
 
-  let totPaxBarcos = 0;
-  let totValorBarcos = 0;
+  let totPaxBarcos = 0, totValorBarcos = 0;
 
   if (barcosFiltrados.length === 0) {
     listaBarcos.innerHTML = '<p class="text-gray-500 text-center text-sm">Nenhuma embarcação registrada nesta data.</p>';
   } else {
     barcosFiltrados.forEach(e => {
-      const valorRepasse = arredondar2(Number(e.valorRepasse) || 0);
-
       totPaxBarcos += Number(e.totalPax) || 0;
-      totValorBarcos = somarMoeda(totValorBarcos, valorRepasse);
+      totValorBarcos += Number(e.valorRepasse) || 0;
 
       listaBarcos.innerHTML += `
         <div class="bg-gray-50 p-3 rounded text-sm border-l-4 border-blue-500">
@@ -2432,7 +2718,7 @@ function atualizarTela() {
 
           <div class="flex justify-between text-xs mb-2">
             <span>👨${Number(e.adultos) || 0} 🧒${Number(e.criancas) || 0} 👶${Number(e.bebes) || 0} 🎁${Number(e.cortesia) || 0} = ${Number(e.totalPax) || 0}</span>
-            <span class="font-bold text-green-600">${formatarMoeda(valorRepasse)}</span>
+            <span class="font-bold text-green-600">${formatarMoeda(Number(e.valorRepasse) || 0)}</span>
           </div>
 
           <button onclick="excluirBarco('${e.id}')" class="w-full btn-delete text-xs py-1 rounded">🗑️ Excluir</button>
@@ -2444,7 +2730,6 @@ function atualizarTela() {
   document.getElementById('total-barcos-pax').innerText = totPaxBarcos;
   document.getElementById('total-barcos-valor').innerText = formatarMoeda(totValorBarcos);
 
-  // Relatórios Catamarãs
   const relCat = {};
 
   if (filtroTipoRelatorio !== 'comissao') {
@@ -2459,13 +2744,13 @@ function atualizarTela() {
         relCat[catamaran].dias[e.data] = { valor: 0, pax: 0, lancamentos: 0 };
       }
 
-      const valor = arredondar2(Number(e.valorRepasse) || 0);
+      const valor = Number(e.valorRepasse) || 0;
       const pax = Number(e.totalPax) || 0;
 
-      relCat[catamaran].valor = somarMoeda(relCat[catamaran].valor, valor);
+      relCat[catamaran].valor += valor;
       relCat[catamaran].pax += pax;
 
-      relCat[catamaran].dias[e.data].valor = somarMoeda(relCat[catamaran].dias[e.data].valor, valor);
+      relCat[catamaran].dias[e.data].valor += valor;
       relCat[catamaran].dias[e.data].pax += pax;
       relCat[catamaran].dias[e.data].lancamentos += 1;
     });
@@ -2485,7 +2770,7 @@ function atualizarTela() {
           .sort(([dataA], [dataB]) => dataB.localeCompare(dataA));
 
         const saldoDevedor = diasDoCatamara.reduce((saldo, [data, dia]) =>
-          somarMoeda(saldo, obterResumoPagamentoDiario('catamara', cat, data, dia.valor).saldoRestante),
+          saldo + obterResumoPagamentoDiario('catamara', cat, data, dia.valor).saldoRestante,
         0);
 
         const linhasDiarias = diasDoCatamara
@@ -2529,7 +2814,6 @@ function atualizarTela() {
       }).join('');
   }
 
-  // Relatórios Agências
   const relAge = {};
 
   if (filtroTipoRelatorio !== 'embarque') {
@@ -2574,7 +2858,7 @@ function atualizarTela() {
         const passagens = valorFaturamentoRegistro(e);
         const comissao = valorComissaoRegistro(e);
         const almocaram = Number(e.almocaram) || 0;
-        const valorPago = arredondar2(Number(e.valorPago) || 0);
+        const valorPago = Number(e.valorPago) || 0;
 
         const nomeGuia = String(e.guia || '').trim() || 'Guia não informado';
         const formaPagamento = String(e.formaPagamento || '');
@@ -2611,28 +2895,28 @@ function atualizarTela() {
         relAge[agenciaComissionada].adultos += adultos;
         relAge[agenciaComissionada].criancas += criancas;
         relAge[agenciaComissionada].cortesias += cortesias;
-        relAge[agenciaComissionada].passagens = somarMoeda(relAge[agenciaComissionada].passagens, passagens);
-        relAge[agenciaComissionada].comissao = somarMoeda(relAge[agenciaComissionada].comissao, comissao);
+        relAge[agenciaComissionada].passagens += passagens;
+        relAge[agenciaComissionada].comissao += comissao;
         relAge[agenciaComissionada].almocaram += almocaram;
-        relAge[agenciaComissionada].valorPago = somarMoeda(relAge[agenciaComissionada].valorPago, valorPago);
+        relAge[agenciaComissionada].valorPago += valorPago;
 
         diaAgencia.pax += pax;
         diaAgencia.adultos += adultos;
         diaAgencia.criancas += criancas;
         diaAgencia.cortesias += cortesias;
-        diaAgencia.passagens = somarMoeda(diaAgencia.passagens, passagens);
-        diaAgencia.comissao = somarMoeda(diaAgencia.comissao, comissao);
+        diaAgencia.passagens += passagens;
+        diaAgencia.comissao += comissao;
         diaAgencia.almocaram += almocaram;
-        diaAgencia.valorPago = somarMoeda(diaAgencia.valorPago, valorPago);
+        diaAgencia.valorPago += valorPago;
 
         dadosGuia.pax += pax;
         dadosGuia.adultos += adultos;
         dadosGuia.criancas += criancas;
         dadosGuia.cortesias += cortesias;
-        dadosGuia.passagens = somarMoeda(dadosGuia.passagens, passagens);
-        dadosGuia.comissao = somarMoeda(dadosGuia.comissao, comissao);
+        dadosGuia.passagens += passagens;
+        dadosGuia.comissao += comissao;
         dadosGuia.almocaram += almocaram;
-        dadosGuia.valorPago = somarMoeda(dadosGuia.valorPago, valorPago);
+        dadosGuia.valorPago += valorPago;
       });
   }
 
@@ -2651,7 +2935,7 @@ function atualizarTela() {
 
         const resumoAcertosPeriodo = diasDaAgencia.reduce((total, [data]) => {
           const resumoDia = resumoPagamentosJardas(obterPrestacoesDiarias('agencia', age, data));
-          return somarMoeda(total, resumoDia.valorAbatido);
+          return total + resumoDia.valorAbatido;
         }, 0);
 
         const totalAbatidoJardas = resumoAcertosPeriodo;
@@ -2661,7 +2945,7 @@ function atualizarTela() {
         0);
 
         const valorCortesiasConcedidas = diasDaAgencia.reduce((total, [data, dia]) =>
-          somarMoeda(total, obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor),
+          total + obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto).valor,
         0);
 
         const baixasDiariasJardas = calcularBaixasDiariasJardas(dataFim);
@@ -2685,7 +2969,7 @@ function atualizarTela() {
           });
 
         const saldoLiquido = calcularSaldoJardasAte(dataFim);
-        const movimentoPeriodo = arredondar2(saldoLiquido - saldoAnteriorPeriodo);
+        const movimentoPeriodo = saldoLiquido - saldoAnteriorPeriodo;
         const situacaoPeriodo = situacaoSaldoJardas(saldoLiquido);
 
         const detalhesWhats = diasDaAgencia.map(([data, dia]) => {
@@ -2739,7 +3023,9 @@ function atualizarTela() {
             const pagamentosGuias = dia.guias
               .filter(guia => guia.valorPago > 0)
               .sort((guiaA, guiaB) => guiaA.nome.localeCompare(guiaB.nome, 'pt-BR'))
-              .map(guia => `${escaparHTML(guia.nome)}: ${escaparHTML(detalharPagamentoGuia(guia.formaPagamento, guia.valorPago))}`)
+              .map(guia =>
+                `${escaparHTML(guia.nome)}: ${escaparHTML(detalharPagamentoGuia(guia.formaPagamento, guia.valorPago))}`
+              )
               .join(' · ');
 
             const detalhePagamento = pagamentosGuias
@@ -2782,15 +3068,10 @@ function atualizarTela() {
               restante: 0
             };
 
-            const saldoAnteriorDoDia = arredondar2(Number(saldoAnteriorPorData[data]) || 0);
-            const saldoAposODia = arredondar2(Number(saldoAposPorData[data]) || 0);
-
             return {
               data,
               adultos: dia.adultos,
               criancas: dia.criancas,
-              almocaram: Number(dia.almocaram) || 0,
-              passageirosPagantes: (Number(dia.adultos) || 0) + (Number(dia.criancas) || 0),
               cortesias: dia.cortesias,
               cortesiasConcedidas: cortesiasDia.quantidade,
               valorCortesiasConcedidas: cortesiasDia.valor,
@@ -2801,10 +3082,8 @@ function atualizarTela() {
               creditoDoDia: baixaDia.creditoDoDia,
               valorAbatido: baixaDia.valorAbatido,
               restante: baixaDia.restante,
-              saldoAnterior: saldoAnteriorDoDia,
-              saldoAnteriorDoDia,
-              saldoAposODia,
-              saldo: ehDataFechamentoJardas(data) ? 0 : saldoAposODia,
+              saldoAnterior: saldoAnteriorPorData[data],
+              saldo: ehDataFechamentoJardas(data) ? 0 : -baixaDia.restante,
               fechamentoNoDia: ehDataFechamentoJardas(data),
               guias: dia.guias
                 .slice()
@@ -2812,8 +3091,6 @@ function atualizarTela() {
             };
           })
         };
-
-        const ultimoFechamento = dataUltimoFechamentoJardas();
 
         return `
           <div class="border-2 border-purple-200 rounded-xl p-3 mb-4">
@@ -2861,10 +3138,10 @@ function atualizarTela() {
 
             <button type="button" onclick="compartilharVoucherJardas('${voucherId}', this)" class="block w-full bg-green-600 text-white text-sm font-bold py-3 rounded-lg text-center mb-3">📤 Compartilhar voucher no WhatsApp</button>
 
-            ${!ultimoFechamento || dataFim > ultimoFechamento
+            ${dataFim > dataUltimoFechamentoJardas()
               ? `<button type="button" onclick="abrirPagamentoDiario('agencia', 'Jardas', '${dataFim}', 0)" class="block w-full bg-purple-700 text-white text-sm font-bold py-3 rounded-lg text-center mb-3">💰 Registrar pagamento em ${formatarDataRelatorio(dataFim)}</button>
                  <button type="button" onclick="zerarContasJardasAte('${dataFim}')" class="block w-full bg-gray-700 text-white text-sm font-bold py-3 rounded-lg text-center mb-3">⚖️ Fechar e zerar contas até ${formatarDataRelatorio(dataFim)}</button>`
-              : `<div class="bg-gray-100 text-gray-700 text-sm font-bold p-3 rounded-lg text-center mb-3">⚖️ Contas já fechadas até ${formatarDataRelatorio(ultimoFechamento)}</div>`}
+              : `<div class="bg-gray-100 text-gray-700 text-sm font-bold p-3 rounded-lg text-center mb-3">⚖️ Contas já fechadas até ${formatarDataRelatorio(dataUltimoFechamentoJardas())}</div>`}
 
             <div class="space-y-2">${linhasDiarias}</div>
           </div>
@@ -2872,10 +3149,7 @@ function atualizarTela() {
       }).join('');
   }
 
-  // Conferência
-  let totalGuiasPax = 0;
-  let totalBarcosPax = 0;
-  let totalAlmoco = 0;
+  let totalGuiasPax = 0, totalBarcosPax = 0, totalAlmoco = 0;
 
   contasGuias.forEach(e => {
     totalGuiasPax += Number(e.totalPax) || 0;
@@ -2889,24 +3163,20 @@ function atualizarTela() {
   document.getElementById('conf-dif').innerText = totalGuiasPax - totalBarcosPax;
   document.getElementById('conf-almoco').innerText = totalAlmoco;
 
-  // Resumo Financeiro
-  let totBruto = 0;
-  let totComissao = 0;
-  let totRepasse = 0;
+  let totBruto = 0, totComissao = 0, totRepasse = 0;
 
   contasGuias.forEach(e => {
-    totBruto = somarMoeda(totBruto, valorFaturamentoRegistro(e));
-    totComissao = somarMoeda(totComissao, valorComissaoRegistro(e));
+    totBruto += Number(e.faturamento) || 0;
+    totComissao += valorComissaoRegistro(e);
   });
 
-  contasBarcos.forEach(e => totRepasse = somarMoeda(totRepasse, Number(e.valorRepasse) || 0));
+  contasBarcos.forEach(e => totRepasse += Number(e.valorRepasse) || 0);
 
   document.getElementById('res-bruto').innerText = formatarMoeda(totBruto);
   document.getElementById('res-comissao').innerText = formatarMoeda(totComissao);
   document.getElementById('res-repasse').innerText = formatarMoeda(totRepasse);
   document.getElementById('res-lucro').innerText = formatarMoeda(totBruto - totComissao - totRepasse);
 
-  // Datalists
   const guias = [...new Set(registrosGuias.map(e => e.guia))];
   document.getElementById('guias-list').innerHTML = guias.map(g => `<option value="${escaparHTML(g)}">`).join('');
 
@@ -2926,7 +3196,7 @@ function atualizarTela() {
 }
 
 function formatarDataHistorico(data) {
-  return dataValidaISO(data)
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(data || ''))
     ? formatarDataRelatorio(data)
     : (data || '--');
 }
@@ -2957,7 +3227,7 @@ function detalheParcelaPrestacao(prestacao) {
     return `<div class="text-xs text-purple-700 font-semibold">💰 ${escaparHTML(descricaoPagamentoJardas(prestacao))} · pagamento ${prestacao.pagamentoParcial ? 'parcial' : 'registrado'}</div>`;
   }
 
-  const valorTotal = arredondar2(Number(prestacao.valorTotalMovimento) || 0);
+  const valorTotal = Number(prestacao.valorTotalMovimento) || 0;
 
   if (prestacao.tipo !== 'catamara' || valorTotal <= 0) return '';
 
@@ -2968,9 +3238,7 @@ function detalheParcelaPrestacao(prestacao) {
   </div>`;
 }
 
-// Atualizar Histórico de Pagamentos
 function atualizarHistorico() {
-  // Último pagamento por catamarã
   const ultimasCatamaras = {};
 
   prestacoes.filter(p => p.tipo === 'catamara').forEach(p => {
@@ -3001,7 +3269,6 @@ function atualizarHistorico() {
     `).join('');
   }
 
-  // Último pagamento por agência
   const ultimasAgencias = {};
 
   prestacoes
@@ -3033,7 +3300,6 @@ function atualizarHistorico() {
     `).join('');
   }
 
-  // Todos os pagamentos
   const todasPrestacoes = ordenarPorDataHora(prestacoes.map(p => ({
     ...p,
     data: p.dataPrestacao || '',
@@ -3077,7 +3343,7 @@ function atualizarHistorico() {
           const movimento = dados.data ? formatarDataHistorico(dados.data) : '--';
 
           const resumo = item.tipo === 'guia'
-            ? `${Number(dados.adultos) || 0} adultos · ${Number(dados.criancas) || 0} crianças · ${formatarMoeda(valorFaturamentoRegistro(dados))}`
+            ? `${Number(dados.adultos) || 0} adultos · ${Number(dados.criancas) || 0} crianças · ${formatarMoeda(Number(dados.faturamento) || 0)}`
             : `${Number(dados.totalPax) || 0} passageiros · ${formatarMoeda(Number(dados.valorRepasse) || 0)}`;
 
           return `<div class="bg-red-50 border-l-4 border-red-400 rounded p-3 text-sm">
@@ -3090,43 +3356,32 @@ function atualizarHistorico() {
 }
 
 function carregarConfig() {
-  config = {
-    adulto: arredondar2(Number(config.adulto) || 60),
-    crianca: arredondar2(Number(config.crianca) || 35),
-    comissao: arredondar2(Number(config.comissao) || 5)
-  };
-
   document.getElementById('cfg-adulto').value = config.adulto;
   document.getElementById('cfg-crianca').value = config.crianca;
   document.getElementById('cfg-comissao').value = config.comissao;
 
-  document.getElementById('lbl-adulto').innerText = `R$${formatarValorCurto(config.adulto)}`;
-  document.getElementById('lbl-crianca').innerText = `R$${formatarValorCurto(config.crianca)}`;
-  document.getElementById('lbl-comissao-rel').innerText = formatarValorCurto(config.comissao);
-
-  const lblForm = document.getElementById('lbl-comissao-form');
-  if (lblForm) lblForm.innerText = formatarValorCurto(config.comissao);
+  document.getElementById('lbl-adulto').innerText = `R$${config.adulto}`;
+  document.getElementById('lbl-crianca').innerText = `R$${config.crianca}`;
+  document.getElementById('lbl-comissao-rel').innerText = config.comissao;
 
   atualizarTotaisForm();
 }
 
 function salvarConfig() {
   const novosValores = {
-    adulto: arredondar2(Number(document.getElementById('cfg-adulto').value)),
-    crianca: arredondar2(Number(document.getElementById('cfg-crianca').value)),
-    comissao: arredondar2(Number(document.getElementById('cfg-comissao').value))
+    adulto: Number(document.getElementById('cfg-adulto').value),
+    crianca: Number(document.getElementById('cfg-crianca').value),
+    comissao: Number(document.getElementById('cfg-comissao').value)
   };
 
   if (Object.values(novosValores).some(valor => !Number.isFinite(valor) || valor < 0)) {
     return alert('Informe somente valores iguais ou maiores que zero.');
   }
 
-  db.collection('config').doc('principal').set(novosValores)
-    .then(() => {
-      config = novosValores;
-      carregarConfig();
-      alert('Configurações salvas!');
-    })
+  config = novosValores;
+
+  db.collection('config').doc('principal').set(config)
+    .then(() => alert('Configurações salvas!'))
     .catch((error) => alert('Erro: ' + error.message));
 }
 
@@ -3138,9 +3393,9 @@ function exportarGuias() {
   let csv = 'Data;Hora;Guia;Agência;Forma de pagamento;Valor pago;Adultos;Crianças;Bebês;Cortesia;Total Embarque;Almoço;Faturamento;Comissão\n';
 
   dados.forEach(e => {
-    const valorPago = e.valorPago === undefined ? '' : arredondar2(Number(e.valorPago) || 0);
+    const valorPago = e.valorPago === undefined ? '' : (Number(e.valorPago) || 0);
 
-    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${escapeCSV(nomeFormaPagamentoGuia(e.formaPagamento))};${valorPago};${Number(e.adultos) || 0};${Number(e.criancas) || 0};${Number(e.bebes) || 0};${Number(e.cortesia) || 0};${Number(e.totalPax) || 0};${Number(e.almocaram) || 0};${valorFaturamentoRegistro(e)};${valorComissaoRegistro(e)}\n`;
+    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${escapeCSV(nomeFormaPagamentoGuia(e.formaPagamento))};${valorPago};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
   });
 
   const BOM = '\uFEFF';
@@ -3160,7 +3415,7 @@ function exportarBarcos() {
   let csv = 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
 
   dados.forEach(e => {
-    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(nomeCanonicoEmbarcacao(e.catamaran))};${Number(e.adultos) || 0};${Number(e.criancas) || 0};${Number(e.bebes) || 0};${Number(e.cortesia) || 0};${Number(e.totalPax) || 0};${arredondar2(Number(e.valorRepasse) || 0)}\n`;
+    csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(nomeCanonicoEmbarcacao(e.catamaran))};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
   });
 
   const BOM = '\uFEFF';
@@ -3209,11 +3464,11 @@ function exportarRelatorioPeriodo() {
   const dataFim = document.getElementById('dataFim').value || dataLocalHoje();
 
   const dadosGuias = ordenarPorDataHora(
-    registrosGuias.filter(e => dataValidaISO(e.data) && e.data >= dataInicio && e.data <= dataFim)
+    registrosGuias.filter(e => e.data >= dataInicio && e.data <= dataFim)
   );
 
   const dadosBarcos = ordenarPorDataHora(
-    registrosEmbarcacoes.filter(e => dataValidaISO(e.data) && e.data >= dataInicio && e.data <= dataFim)
+    registrosEmbarcacoes.filter(e => e.data >= dataInicio && e.data <= dataFim)
   );
 
   if (dadosGuias.length === 0 && dadosBarcos.length === 0) return alert('Nenhum registro no período.');
@@ -3226,9 +3481,9 @@ function exportarRelatorioPeriodo() {
     csv += 'Data;Hora;Guia;Agência;Forma de pagamento;Valor pago;Adultos;Crianças;Bebês;Cortesia;Total;Almoço;Faturamento;Comissão\n';
 
     dadosGuias.forEach(e => {
-      const valorPago = e.valorPago === undefined ? '' : arredondar2(Number(e.valorPago) || 0);
+      const valorPago = e.valorPago === undefined ? '' : (Number(e.valorPago) || 0);
 
-      csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${escapeCSV(nomeFormaPagamentoGuia(e.formaPagamento))};${valorPago};${Number(e.adultos) || 0};${Number(e.criancas) || 0};${Number(e.bebes) || 0};${Number(e.cortesia) || 0};${Number(e.totalPax) || 0};${Number(e.almocaram) || 0};${valorFaturamentoRegistro(e)};${valorComissaoRegistro(e)}\n`;
+      csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(e.guia)};${escapeCSV(e.agencia)};${escapeCSV(nomeFormaPagamentoGuia(e.formaPagamento))};${valorPago};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.almocaram || 0};${e.faturamento};${valorComissaoRegistro(e)}\n`;
     });
   }
 
@@ -3237,7 +3492,7 @@ function exportarRelatorioPeriodo() {
     csv += 'Data;Hora;Catamarã;Adultos;Crianças;Bebês;Cortesia;Total;Valor Repasse\n';
 
     dadosBarcos.forEach(e => {
-      csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(nomeCanonicoEmbarcacao(e.catamaran))};${Number(e.adultos) || 0};${Number(e.criancas) || 0};${Number(e.bebes) || 0};${Number(e.cortesia) || 0};${Number(e.totalPax) || 0};${arredondar2(Number(e.valorRepasse) || 0)}\n`;
+      csv += `${escapeCSV(e.data)};${escapeCSV(e.hora)};${escapeCSV(nomeCanonicoEmbarcacao(e.catamaran))};${e.adultos};${e.criancas};${e.bebes};${e.cortesia};${e.totalPax};${e.valorRepasse}\n`;
     });
   }
 
@@ -3252,7 +3507,7 @@ function exportarRelatorioPeriodo() {
 
 function backupDados() {
   const backup = {
-    versao: '3.2',
+    versao: '3.0',
     registrosGuias,
     registrosEmbarcacoes,
     prestacoes,
@@ -3305,31 +3560,28 @@ function restaurarBackup(event) {
 function validarEstruturaBackup(data) {
   const objeto = item => item && typeof item === 'object' && !Array.isArray(item);
 
+  const dataValida = valor => /^\d{4}-\d{2}-\d{2}$/.test(String(valor || ''));
   const numeroValido = valor => valor === undefined || (Number.isFinite(Number(valor)) && Number(valor) >= 0);
 
-  const guiaValido = item => objeto(item) && dataValidaISO(item.data) &&
+  const guiaValido = item => objeto(item) && dataValida(item.data) &&
     typeof item.guia === 'string' && typeof item.agencia === 'string' &&
     ['adultos', 'criancas', 'bebes', 'cortesia', 'totalPax', 'faturamento', 'valorPago', 'almocaram'].every(chave => numeroValido(item[chave]));
 
-  const barcoValido = item => objeto(item) && dataValidaISO(item.data) && typeof item.catamaran === 'string' &&
+  const barcoValido = item => objeto(item) && dataValida(item.data) && typeof item.catamaran === 'string' &&
     ['adultos', 'criancas', 'bebes', 'cortesia', 'totalPax', 'valorRepasse'].every(chave => numeroValido(item[chave]));
 
   const prestacaoValida = item => objeto(item) && typeof item.tipo === 'string' && typeof item.nome === 'string' &&
-    numeroValido(item.valor) && (!item.dataMovimento || dataValidaISO(item.dataMovimento));
+    numeroValido(item.valor) && (!item.dataMovimento || dataValida(item.dataMovimento));
 
-  const configValida = !data.config || (
-    objeto(data.config) &&
-    ['adulto', 'crianca', 'comissao'].every(chave => Number.isFinite(Number(data.config[chave])) && Number(data.config[chave]) >= 0)
-  );
+  const configValida = !data.config || (objeto(data.config) &&
+    ['adulto', 'crianca', 'comissao'].every(chave => Number.isFinite(Number(data.config[chave])) && Number(data.config[chave]) >= 0));
 
-  return Boolean(
-    objeto(data) &&
+  return Boolean(objeto(data) &&
     Array.isArray(data.registrosGuias) && data.registrosGuias.every(guiaValido) &&
     Array.isArray(data.registrosEmbarcacoes) && data.registrosEmbarcacoes.every(barcoValido) &&
     (!data.prestacoes || (Array.isArray(data.prestacoes) && data.prestacoes.every(prestacaoValida))) &&
     (!data.historicoExclusoes || (Array.isArray(data.historicoExclusoes) && data.historicoExclusoes.every(objeto))) &&
-    configValida
-  );
+    configValida);
 }
 
 function hashBackup(texto) {
@@ -3398,13 +3650,7 @@ async function substituirBackup(data) {
 
     for (const colecao of colecoes) await gravarEmLotes(colecao.nome, colecao.itens, false);
 
-    if (data.config) {
-      await db.collection('config').doc('principal').set({
-        adulto: arredondar2(Number(data.config.adulto) || 60),
-        crianca: arredondar2(Number(data.config.crianca) || 35),
-        comissao: arredondar2(Number(data.config.comissao) || 5)
-      });
-    }
+    if (data.config) await db.collection('config').doc('principal').set(data.config);
 
     for (const colecao of colecoes) {
       const idsBackup = new Set(colecao.itens.map(item => item.id));
@@ -3425,11 +3671,7 @@ async function mesclarBackup(data) {
     }
 
     if (data.config) {
-      await db.collection('config').doc('principal').set({
-        adulto: arredondar2(Number(data.config.adulto) || 60),
-        crianca: arredondar2(Number(data.config.crianca) || 35),
-        comissao: arredondar2(Number(data.config.comissao) || 5)
-      }, { merge: true });
+      await db.collection('config').doc('principal').set(data.config, { merge: true });
     }
 
     alert('✅ Backup mesclado sem duplicar os mesmos registros!');
@@ -3549,3 +3791,5 @@ firebase.auth().onAuthStateChanged(async usuario => {
   }
 });
 </script>
+</body>
+</html>
