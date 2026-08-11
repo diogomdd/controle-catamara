@@ -4052,11 +4052,14 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
   const largura = 1080;
   const margem = 64;
   const alturaCabecalho = 230;
-  const alturaBaseDia = 560;
+  const alturaBaseDia = 614;
   const alturaPorPagamento = 48;
+  const alturaPorGuia = 46;
 
   const alturasDias = voucher.dias.map(dia =>
-    alturaBaseDia + ((Array.isArray(dia.pagamentos) ? dia.pagamentos.length : 0) * alturaPorPagamento)
+    alturaBaseDia +
+    ((Array.isArray(dia.guias) ? dia.guias.length : 0) * alturaPorGuia) +
+    ((Array.isArray(dia.pagamentos) ? dia.pagamentos.length : 0) * alturaPorPagamento)
   );
 
   const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + 60;
@@ -4197,7 +4200,32 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
 
     desenharLinha(formatarDataRelatorio(dia.data), margem + 34, y + 64, 40, '#14532d', true);
 
-    let posY = y + 140;
+    const guias = Array.isArray(dia.guias) ? dia.guias : [];
+
+    let posY = y + 132;
+
+    desenharLinha(
+      guias.length === 1 ? 'Guia do dia' : 'Guias do dia',
+      margem + 34,
+      posY,
+      28,
+      '#14532d',
+      true
+    );
+
+    posY += 44;
+
+    if (guias.length > 0) {
+      guias.forEach(guia => {
+        desenharLinha(descricaoGuiaVoucher(guia), margem + 50, posY, 28, '#111827');
+        posY += alturaPorGuia;
+      });
+    } else {
+      desenharLinha('Nenhum guia informado', margem + 50, posY, 26, '#6b7280');
+      posY += alturaPorGuia;
+    }
+
+    posY += 8;
 
     desenharLinhaDupla(
       `Saldo acumulado ${formatarDataCurtaCanvas(dataSaldoAcumulado)}`,
