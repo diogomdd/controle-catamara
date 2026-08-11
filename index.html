@@ -993,11 +993,11 @@ function descricaoGuiaVoucher(guia) {
     ? `  pg ${formatarValorCurto(guia.valorPago)} ${nomeFormaPagamentoGuia(guia.formaPagamento).toLocaleLowerCase('pt-BR')}`
     : '';
 
-  return `${guia.nome}  ${guia.adultos} pax${criancas}${pagamento}`;
+  return `${guia.nome} — ${guia.adultos} pax${criancas}${pagamento}`;
 }
 
 function textoSaldoComData(rotulo, data, saldo) {
-  return `${rotulo} ${formatarDataRelatorio(data)}: ${situacaoSaldoJardas(saldo).texto}`;
+  return `${rotulo} ${formatarDataRelatorio(data)}: ${formatarMoedaSinal(saldo)}`;
 }
 
 function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
@@ -1068,7 +1068,10 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
     desenharLinha(formatarDataRelatorio(dia.data), margem + 34, linhaY, 40, '#14532d', true);
     linhaY += 62;
 
-    desenharLinha(`Saldo anterior de ${formatarDataRelatorio(dia.dataSaldoAnterior)} = ${situacaoSaldoJardas(dia.saldoAnteriorAcumulado).texto}`, margem + 34, linhaY, 29, '#475569');
+    desenharLinha(`Guias do dia`, margem + 34, linhaY, 31, '#14532d', true);
+    linhaY += 48;
+
+    desenharLinha(`Saldo anterior de ${formatarDataRelatorio(dia.dataSaldoAnterior)} = ${formatarMoedaSinal(dia.saldoAnteriorAcumulado)}`, margem + 34, linhaY, 29, '#475569');
     linhaY += 46;
 
     dia.guias.forEach(guia => {
@@ -1112,7 +1115,7 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
     const restanteDia = Math.max(0, Number(dia.restante) || 0);
     const corSaldo = restanteDia > 0.009 ? '#b91c1c' : '#15803d';
 
-    desenharLinha(`Saldo final de ${formatarDataRelatorio(dia.data)} = ${situacaoSaldoJardas(dia.saldoFinalAcumulado).texto}`, margem + 34, linhaY + 340, 29, '#475569', true);
+    desenharLinha(`Saldo final de ${formatarDataRelatorio(dia.data)} = ${formatarMoedaSinal(dia.saldoFinalAcumulado)}`, margem + 34, linhaY + 340, 29, '#475569', true);
     desenharLinha('RESTANTE DESTE DIA', margem + 34, linhaY + 390, 30, '#475569', true);
     desenharLinha(formatarMoeda(restanteDia), margem + 34, linhaY + 456, 46, corSaldo, true);
 
@@ -1134,7 +1137,7 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
     let resumoY = y + 58;
 
     desenharLinha('TOTAL DO PERÍODO', margem + 34, resumoY, 38, '#14532d', true);
-    desenharLinha(`Saldo anterior = ${situacaoSaldoJardas(voucher.saldoAnterior).texto}`, margem + 34, resumoY + 58, 28, '#475569');
+    desenharLinha(`Saldo anterior = ${formatarMoedaSinal(voucher.saldoAnterior)}`, margem + 34, resumoY + 58, 28, '#475569');
     desenharLinha(`Total de pax = ${voucher.adultos}${voucher.criancas > 0 ? `+${voucher.criancas}chd` : ''}`, margem + 34, resumoY + 116, 30);
     desenharLinha(`Cortesias concedidas = ${voucher.cortesiasConcedidas} (- ${formatarValorCurto(voucher.valorCortesiasConcedidas)})`, margem + 34, resumoY + 174, 30);
     desenharLinha(`Valor total = ${formatarValorCurto(voucher.passagens)}`, margem + 34, resumoY + 232, 30);
@@ -1142,7 +1145,7 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
     desenharLinha(`Pagamentos de guias = ${formatarValorCurto(voucher.valorPago)}`, margem + 34, resumoY + 348, 30);
     desenharLinha(`Pagamentos abatidos = ${formatarValorCurto(voucher.valorAbatido)}`, margem + 34, resumoY + 396, 30);
     desenharLinha('SALDO FINAL TOTAL', margem + 34, resumoY + 454, 30, '#475569', true);
-    desenharLinha(situacaoSaldoJardas(voucher.saldo).texto, margem + 34, resumoY + 522, 46, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
+    desenharLinha(`Saldo final = ${formatarMoedaSinal(voucher.saldo)}`, margem + 34, resumoY + 522, 46, voucher.saldo < 0 ? '#b91c1c' : (voucher.saldo > 0 ? '#6b21a8' : '#15803d'), true);
   } else {
     ctx.fillStyle = '#dcfce7';
     ctx.beginPath();
@@ -3007,7 +3010,7 @@ function atualizarTela() {
 
         const resumoPeriodo = diasDaAgencia.length > 1
           ? `\n*TOTAL DO PERÍODO*\nSaldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorPeriodo)} = ${situacaoSaldoJardas(saldoAnteriorPeriodo).texto}\nTotal de pax = ${d.adultos}${d.criancas > 0 ? `+${d.criancas}chd` : ''}\nTotal de cortesia = ${d.cortesias}\nValor total = ${formatarValorCurto(d.passagens)}\nAlmoço = ${formatarValorCurto(d.comissao)}${pagamentosPeriodo}${pagamentosAbatidosPeriodo}\nSaldo final do período = ${situacaoPeriodo.texto}`
-          : `\n*SALDO FINAL TOTAL*\nSaldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorPeriodo)} = ${situacaoSaldoJardas(saldoAnteriorPeriodo).texto}\nSaldo final = ${situacaoPeriodo.texto}`;
+          : `\n*SALDO FINAL TOTAL*\nSaldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorPeriodo)} = ${formatarMoedaSinal(saldoAnteriorPeriodo)}\nSaldo final = ${formatarMoedaSinal(saldoLiquido)}`;
 
         const textoWhats = `*CONTAS JARDAS*\n${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n${detalhesWhats}${resumoPeriodo}`;
 
