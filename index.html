@@ -848,10 +848,6 @@ function calcularBaixasDiariasJardas(dataFim) {
 function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
   if (!dataFim || dataFim < inicioCortesiasAutomaticasJardas) return 0;
 
-  if (!prestacaoIgnoradaId && cacheSaldoJardas.has(dataFim)) {
-    return cacheSaldoJardas.get(dataFim);
-  }
-
   const prestacoesJardas = prestacoes
     .filter(p =>
       p.id !== prestacaoIgnoradaId &&
@@ -885,7 +881,6 @@ function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
     : inicioCortesiasAutomaticasJardas;
 
   if (dataInicio > dataFim) {
-    if (!prestacaoIgnoradaId) cacheSaldoJardas.set(dataFim, saldo);
     return saldo;
   }
 
@@ -933,7 +928,6 @@ function calcularSaldoJardasAte(dataFim, prestacaoIgnoradaId = null) {
 
   const saldoFinal = saldo + movimentoPagamentos;
 
-  if (!prestacaoIgnoradaId) cacheSaldoJardas.set(dataFim, saldoFinal);
 
   return saldoFinal;
 }
@@ -1002,12 +996,16 @@ function descricaoGuiaVoucher(guia) {
   return `${guia.nome}  ${guia.adultos} pax${criancas}${pagamento}`;
 }
 
+function textoSaldoComData(rotulo, data, saldo) {
+  return `${rotulo} ${formatarDataRelatorio(data)}: ${situacaoSaldoJardas(saldo).texto}`;
+}
+
 function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
   const largura = 1080;
   const margem = 64;
   const alturaCabecalho = 230;
 
-  const alturasDias = voucher.dias.map(dia => 560 + (dia.guias.length * 58));
+  const alturasDias = voucher.dias.map(dia => 700 + (dia.guias.length * 58));
   const alturaResumo = voucher.dias.length > 1 ? 660 : 460;
   const altura = alturaCabecalho + alturasDias.reduce((total, valor) => total + valor, 0) + alturaResumo + 90;
 
@@ -1070,6 +1068,9 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
     desenharLinha(formatarDataRelatorio(dia.data), margem + 34, linhaY, 40, '#14532d', true);
     linhaY += 62;
 
+    desenharLinha(`Saldo anterior de ${formatarDataRelatorio(dia.dataSaldoAnterior)} = ${situacaoSaldoJardas(dia.saldoAnteriorAcumulado).texto}`, margem + 34, linhaY, 29, '#475569');
+    linhaY += 46;
+
     dia.guias.forEach(guia => {
       desenharLinha(descricaoGuiaVoucher(guia), margem + 34, linhaY, 31, '#111827');
       linhaY += 58;
@@ -1111,8 +1112,9 @@ function criarArquivoVoucherJardas(voucher, sufixoArquivo = '') {
     const restanteDia = Math.max(0, Number(dia.restante) || 0);
     const corSaldo = restanteDia > 0.009 ? '#b91c1c' : '#15803d';
 
-    desenharLinha('RESTANTE DESTE DIA', margem + 34, linhaY + 340, 30, '#475569', true);
-    desenharLinha(formatarMoeda(restanteDia), margem + 34, linhaY + 408, 46, corSaldo, true);
+    desenharLinha(`Saldo final de ${formatarDataRelatorio(dia.data)} = ${situacaoSaldoJardas(dia.saldoFinalAcumulado).texto}`, margem + 34, linhaY + 340, 29, '#475569', true);
+    desenharLinha('RESTANTE DESTE DIA', margem + 34, linhaY + 390, 30, '#475569', true);
+    desenharLinha(formatarMoeda(restanteDia), margem + 34, linhaY + 456, 46, corSaldo, true);
 
     y += alturasDias[indice];
   });
@@ -2956,6 +2958,7 @@ function atualizarTela() {
 
         const saldoAnteriorPorData = {};
         const saldoAposPorData = {};
+        const dataSaldoAnteriorPeriodo = deslocarData(dataInicio, -1);
 
         diasDaAgencia
           .slice()
@@ -2988,20 +2991,23 @@ function atualizarTela() {
           const cortesiasDia = obterCortesiasDiariasJardas(data, dia.adultos, dia.valorAdulto);
           const baixaDia = baixasDiariasJardas.porData[data] || { valorDevido: 0, valorAbatido: 0, restante: 0 };
           const fechamentoNoDia = ehDataFechamentoJardas(data);
+          const saldoAnteriorDia = saldoAnteriorPorData[data] ?? 0;
+          const saldoFinalDia = saldoAposPorData[data] ?? 0;
+          const dataSaldoAnteriorDia = deslocarData(data, -1);
 
           const parcelaPagamento = dia.valorPago > 0 ? ` - ${formatarValorCurto(dia.valorPago)} pago` : '';
           const parcelaAbatida = baixaDia.valorAbatido > 0 ? ` - ${formatarValorCurto(baixaDia.valorAbatido)} pagamento abatido` : '';
           const fechamento = fechamentoNoDia ? '\n*Fechamento realizado: contas zeradas*' : '';
 
-          return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaAbatida}${fechamento}\n*${fechamentoNoDia ? 'Saldo zerado' : situacaoSaldoJardas(-baixaDia.restante).texto}*`;
+          return `*${formatarDataRelatorio(data)}*\n${guiasDoDia}\nTotal de pax = ${dia.adultos}${dia.criancas > 0 ? `+${dia.criancas}chd` : ''}\nCortesias concedidas = ${cortesiasDia.quantidade}\nValor total = ${formatarValorCurto(dia.passagens)}\nAlmoço = ${formatarValorCurto(dia.comissao)}\nSaldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorDia)} = ${situacaoSaldoJardas(saldoAnteriorDia).texto}\nCálculo = ${formatarValorCurto(dia.passagens)}${parcelaPagamento} - ${formatarValorCurto(dia.comissao)} almoço - ${formatarValorCurto(cortesiasDia.valor)} cortesias${parcelaAbatida}${fechamento}\nSaldo final de ${formatarDataRelatorio(data)} = ${situacaoSaldoJardas(saldoFinalDia).texto}\n*${fechamentoNoDia ? 'Fechamento realizado: contas zeradas' : situacaoSaldoJardas(saldoFinalDia).texto}*`;
         }).join('\n\n');
 
         const pagamentosPeriodo = d.valorPago > 0 ? `\nPagamentos = ${formatarValorCurto(d.valorPago)}` : '';
         const pagamentosAbatidosPeriodo = totalAbatidoJardas > 0 ? `\nPagamentos abatidos = ${formatarValorCurto(totalAbatidoJardas)}` : '';
 
         const resumoPeriodo = diasDaAgencia.length > 1
-          ? `\n*TOTAL DO PERÍODO*\nTotal de pax = ${d.adultos}${d.criancas > 0 ? `+${d.criancas}chd` : ''}\nTotal de cortesia = ${d.cortesias}\nValor total = ${formatarValorCurto(d.passagens)}\nAlmoço = ${formatarValorCurto(d.comissao)}${pagamentosPeriodo}${pagamentosAbatidosPeriodo}\n*${situacaoPeriodo.texto}*`
-          : `\n*SALDO FINAL TOTAL*\n*${situacaoPeriodo.texto}*`;
+          ? `\n*TOTAL DO PERÍODO*\nSaldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorPeriodo)} = ${situacaoSaldoJardas(saldoAnteriorPeriodo).texto}\nTotal de pax = ${d.adultos}${d.criancas > 0 ? `+${d.criancas}chd` : ''}\nTotal de cortesia = ${d.cortesias}\nValor total = ${formatarValorCurto(d.passagens)}\nAlmoço = ${formatarValorCurto(d.comissao)}${pagamentosPeriodo}${pagamentosAbatidosPeriodo}\nSaldo final do período = ${situacaoPeriodo.texto}`
+          : `\n*SALDO FINAL TOTAL*\nSaldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorPeriodo)} = ${situacaoSaldoJardas(saldoAnteriorPeriodo).texto}\nSaldo final = ${situacaoPeriodo.texto}`;
 
         const textoWhats = `*CONTAS JARDAS*\n${formatarDataRelatorio(dataInicio)} a ${formatarDataRelatorio(dataFim)}\n${detalhesWhats}${resumoPeriodo}`;
 
@@ -3019,6 +3025,9 @@ function atualizarTela() {
 
             const valorParaRepasse = baixaDia.valorDevido;
             const fechamentoNoDia = ehDataFechamentoJardas(data);
+            const saldoAnteriorDia = saldoAnteriorPorData[data] ?? 0;
+            const saldoFinalDia = saldoAposPorData[data] ?? 0;
+            const dataSaldoAnteriorDia = deslocarData(data, -1);
 
             const pagamentosGuias = dia.guias
               .filter(guia => guia.valorPago > 0)
@@ -3037,7 +3046,7 @@ function atualizarTela() {
               age,
               data,
               valorParaRepasse,
-              `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}${fechamentoNoDia ? '<div class="mt-1 text-green-700 font-bold">⚖️ Fechamento realizado: contas zeradas nesta data</div>' : ''}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">${baixaDia.creditoDoDia > 0 ? `Crédito do dia ${formatarMoeda(baixaDia.creditoDoDia)}` : `Valor do dia ${formatarMoeda(baixaDia.valorDevido)}`} · Baixado ${formatarMoeda(baixaDia.valorAbatido)} · Restante ${formatarMoeda(baixaDia.restante)}</div>`,
+              `👨 ${dia.adultos} adultos · ${dia.criancas} crianças${detalhePagamento}${fechamentoNoDia ? '<div class="mt-1 text-green-700 font-bold">⚖️ Fechamento realizado: contas zeradas nesta data</div>' : ''}<div class="mt-1 text-green-700">🎟️ ${cortesiasDia.quantidade} cortesias concedidas · -${formatarMoeda(cortesiasDia.valor)}</div><div class="mt-1 text-purple-700">${baixaDia.creditoDoDia > 0 ? `Crédito do dia ${formatarMoeda(baixaDia.creditoDoDia)}` : `Valor do dia ${formatarMoeda(baixaDia.valorDevido)}`} · Baixado ${formatarMoeda(baixaDia.valorAbatido)} · Restante ${formatarMoeda(baixaDia.restante)}</div><div class="mt-1 text-gray-700">Saldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorDia)} = ${situacaoSaldoJardas(saldoAnteriorDia).texto}</div><div class="mt-1 text-gray-700 font-bold">Saldo final de ${formatarDataRelatorio(data)} = ${situacaoSaldoJardas(saldoFinalDia).texto}</div>`,
               baixaDia
             );
           })
@@ -3083,6 +3092,10 @@ function atualizarTela() {
               valorAbatido: baixaDia.valorAbatido,
               restante: baixaDia.restante,
               saldoAnterior: saldoAnteriorPorData[data],
+              saldoAnteriorAcumulado: saldoAnteriorPorData[data],
+              saldoApos: saldoAposPorData[data],
+              saldoFinalAcumulado: saldoAposPorData[data],
+              dataSaldoAnterior: deslocarData(data, -1),
               saldo: ehDataFechamentoJardas(data) ? 0 : -baixaDia.restante,
               fechamentoNoDia: ehDataFechamentoJardas(data),
               guias: dia.guias
@@ -3099,7 +3112,7 @@ function atualizarTela() {
               <div class="text-xs text-gray-500">👨 ${d.adultos} adultos · ${d.criancas} crianças</div>
 
               <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
-                <span>Saldo acumulado até ${formatarDataRelatorio(deslocarData(dataInicio, -1))}</span>
+                <span>Saldo anterior de ${formatarDataRelatorio(dataSaldoAnteriorPeriodo)}</span>
                 <strong>${situacaoSaldoJardas(saldoAnteriorPeriodo).texto}</strong>
               </div>
 
@@ -3111,6 +3124,11 @@ function atualizarTela() {
               <div class="bg-green-50 border border-green-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
                 <span>Cortesias concedidas no período</span>
                 <strong class="text-green-800">${cortesiasConcedidas} · -${formatarMoeda(valorCortesiasConcedidas)}</strong>
+              </div>
+
+              <div class="bg-white border border-purple-200 rounded-lg p-2 mt-2 text-sm flex justify-between gap-2">
+                <span>Saldo final do período</span>
+                <strong class="${saldoLiquido > 0 ? 'text-purple-700' : (saldoLiquido < 0 ? 'text-red-600' : 'text-green-700')}">${situacaoPeriodo.texto}</strong>
               </div>
 
               <div class="grid grid-cols-2 gap-2 mt-2">
