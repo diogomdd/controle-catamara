@@ -1,4 +1,4 @@
-const CACHE_NAME = 'controle-catamara-v2';
+const CACHE_NAME = 'controle-catamara-v3-20260830';
 
 const ASSETS = [
   './',
